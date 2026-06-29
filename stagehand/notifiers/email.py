@@ -31,8 +31,7 @@ class Notifier(NotifierBase):
             mail.quit()
 
 
-    @asyncio.coroutine
-    def _notify(self, episodes):
+    async def _notify(self, episodes):
         # Sanity check configuration
         if '@' not in modconfig.recipients:
             log.error('invalid recipients, skipping email notification')
@@ -52,7 +51,7 @@ class Notifier(NotifierBase):
         mime['To'] = ', '.join(recipients)
 
         try:
-            yield from self._loop.run_in_executor(None, self._do_smtp, mime, recipients)
+            await self._loop.run_in_executor(None, self._do_smtp, mime, recipients)
         except smtplib.SMTPException as e:
             log.error('unable to send email notification: %s %s', type(e), e)
         else:

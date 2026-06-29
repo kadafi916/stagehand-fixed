@@ -178,24 +178,19 @@ asyncweb = AsyncWeb()
 
 def webcoroutine(interval=1000, blockfor=0):
     def decorator(func):
-        corofunc = asyncio.coroutine(func)
-        def wrapper(*args, **kwargs):
+        async def wrapper(*args, **kwargs):
             job = asyncweb.new_job()
             response = {'jobid': job.id, 'interval': interval, 'pending': False}
 
-            coro = corofunc(job, *args, **kwargs)
-            task = asyncio.Task(coro)
-            try:
-                result = yield from asyncio.wait_for(asyncio.shield(task), blockfor)
-            except asyncio.TimeoutError:
-                # We waited for the task as long as we were willing to block
-                # the client request.  The task will now finish asynchronously
-                # and the client will have to pick up the result by querying
-                # /api/jobs
-                log.debug("webcoroutine didn't finish in %.1f seconds, result will come asynchronously", blockfor)
-            except Exception as e:
-                if not task.done():
-                    task.set_exception(e)
+            task = asyncio.ensure_future(func(job, *args, **kwargs))
+            if blockfor > 0:
+                try:
+                    await asyncio.wait_for(asyncio.shield(task), blockfor)
+                except asyncio.TimeoutError:
+                    log.debug("webcoroutine didn't finish in %.1f seconds, result will come asynchronously", blockfor)
+                except Exception as e:
+                    if not task.done():
+                        task.set_exception(e)
 
             if task.done():
                 job.finish(task)

@@ -73,8 +73,7 @@ class RetrieverBase:
         self._loop = loop or asyncio.get_event_loop()
 
 
-    @asyncio.coroutine
-    def _retrieve(self, progress, episode, result, outfile):
+    async def _retrieve(self, progress, episode, result, outfile):
         """
         Retrieve the given SearchResult object.
         """

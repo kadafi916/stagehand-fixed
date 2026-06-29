@@ -6,7 +6,7 @@ import logging
 import asyncio
 
 from . import server as web
-from .async import asyncweb, webcoroutine
+from .asyncweb import asyncweb, webcoroutine
 from ..utils import episode_status_icon_info
 from ..tvdb import Episode
 
@@ -21,11 +21,11 @@ def get_series_from_request(id):
 
 @web.put('/api/shows/<id>')
 @webcoroutine()
-def show_add(job, id):
+async def show_add(job, id):
     manager = web.request['stagehand.manager']
     job.notify('alert', title='Adding series', text='Retrieving episode information for this series ...')
     try:
-        series = yield from manager.add_series(id)
+        series = await manager.add_series(id)
     except Exception as e:
         log.exception('failed to add series')
         job.notify_after('alert', title='Failed to add series', text=str(e), timeout=2)
@@ -36,7 +36,7 @@ def show_add(job, id):
 
 @web.delete('/api/shows/<id>')
 @webcoroutine()
-def show_delete(job, id):
+async def show_delete(job, id):
     manager = web.request['stagehand.manager']
     name = get_series_from_request(id).name
     manager.delete_series(id)
@@ -63,12 +63,12 @@ def show_banner(id):
 
 @web.post('/api/shows/<id>/provider')
 @webcoroutine()
-def show_provider(job, id):
+async def show_provider(job, id):
     series = get_series_from_request(id)
     provider = web.request.forms.get('provider')
     if provider:
         try:
-            yield from series.change_provider(provider)
+            await series.change_provider(provider)
         except Exception as e:
             job.notify_after('alert', title='Series Provider', text='Failed to change provider: %s' % e.args[0])
             raise web.HTTPError(404, 'Invalid provider.')
@@ -78,9 +78,9 @@ def show_provider(job, id):
 
 @web.post('/api/shows/<id>/refresh')
 @webcoroutine()
-def show_refresh(job, id):
+async def show_refresh(job, id):
     series = get_series_from_request(id)
-    yield from series.refresh()
+    await series.refresh()
 
 
 @web.post('/api/shows/<id>/settings')
@@ -115,12 +115,12 @@ def show_episode_overview(id, code):
 
 @web.get('/api/shows/search')
 @webcoroutine(interval=500)
-def show_search(job):
+async def show_search(job):
     q = web.request.query
     manager = web.request['stagehand.manager']
 
     t0 = time.time()
-    results = yield from manager.tvdb.search(q.name)
+    results = await manager.tvdb.search(q.name)
     job.notify('alert', title='Search results', text='Search took %.3fs' % (time.time() - t0))
     # JSONify the SearchResult objects
     dictlist = []
@@ -139,20 +139,20 @@ def show_search(job):
 
 @web.get('/api/shows/check')
 @webcoroutine(interval=500)
-def show_check(job):
+async def show_check(job):
     manager = web.request['stagehand.manager']
     if web.request.query.id:
         only = [get_series_from_request(web.request.query.id)]
     else:
         only = []
 
-    need, found = yield from manager.check_new_episodes(only=only)
+    need, found = await manager.check_new_episodes(only=only)
     return {'need': sum(len(eps) for eps in need.values()), 'found': len(found)}
 
 
 @web.post('/api/shows/<id>/episodes/<epcode>/status')
 @webcoroutine()
-def show_episodes_status(job, id, epcode):
+async def show_episodes_status(job, id, epcode):
     manager = web.request['stagehand.manager']
     series = get_series_from_request(id)
     eps = [series.get_episode_by_code(code) for code in epcode.split(',')]
@@ -203,7 +203,7 @@ def show_episodes_status(job, id, epcode):
         statuses[ep.code] = episode_status_icon_info(ep)
 
     if do_check_new_episodes:
-        asyncio.async(manager.check_new_episodes(), loop=manager.loop)
+        asyncio.ensure_future(manager.check_new_episodes())
     return {'statuses': statuses}
 
 

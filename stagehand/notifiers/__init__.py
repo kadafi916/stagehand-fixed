@@ -8,24 +8,22 @@ from .base import NotifierError
 log = logging.getLogger('stagehand.notifiers')
 plugins, broken_plugins = load_plugins('notifiers', ['email', 'xbmc'])
 
-@asyncio.coroutine
-def start(manager):
+async def start(manager):
     """
     Called when the manager is starting.
     """
-    yield from invoke_plugins(plugins, 'start', manager)
+    await invoke_plugins(plugins, 'start', manager)
     for name, error in broken_plugins.items():
         log.warning('failed to load notifier plugin %s: %s', name, error)
 
 
-@asyncio.coroutine
-def notify(episodes, skip=[], loop=None):
+async def notify(episodes, skip=[], loop=None):
     for name in config.notifiers.enabled:
         if name not in plugins or name in skip:
             continue
         notifier = plugins[name].Notifier(loop=loop)
         try:
-            yield from notifier.notify(episodes)
+            await notifier.notify(episodes)
         except NotifierError as e:
             log.error('notifier %s failed: %s', name, e.args[0])
         except Exception:

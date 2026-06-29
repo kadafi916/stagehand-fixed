@@ -46,9 +46,9 @@ except ImportError:
     pass
 
 xml_encoding_re = re.compile(
-    '^<\?.*encoding=[\'"](.*?)[\'"].*\?>'.encode(), re.I)
+    rb'^<\?.*encoding=[\'"](.*?)[\'"].*\?>', re.I)
 html_meta_re = re.compile(
-    '<\s*meta[^>]+charset\s*=\s*["\']?([^>]*?)[ /;\'">]'.encode(), re.I)
+    rb'<\s*meta[^>]+charset\s*=\s*["\']?([^>]*?)[ /;\'">]', re.I)
 
 class EntitySubstitution(object):
 
@@ -81,8 +81,8 @@ class EntitySubstitution(object):
         ">": "gt",
         }
 
-    BARE_AMPERSAND_OR_BRACKET = re.compile("([<>]|"
-                                           "&(?!#\d+;|#x[0-9a-fA-F]+;|\w+;)"
+    BARE_AMPERSAND_OR_BRACKET = re.compile(r"([<>]|"
+                                           r"&(?!#\d+;|#x[0-9a-fA-F]+;|\w+;)"
                                            ")")
 
     AMPERSAND_OR_BRACKET = re.compile("([<>&])")

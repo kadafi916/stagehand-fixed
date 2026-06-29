@@ -65,7 +65,7 @@ class SearcherBase:
             # Want.
             'mkv': 3, 'mp4': 2, 'avi': 1,
             # Don't want.
-            'wmv': -inf, 'mpg': -inf, 'ts': -inf, 'rar': -inf, 'r\d\d': -inf,
+            'wmv': -inf, 'mpg': -inf, 'ts': -inf, 'rar': -inf, r'r\d\d': -inf,
         }
         av = {
             (r'[xh]\.?26[45]', r'(ac-?3|dts|dd5\.?1)'): 10,
@@ -234,8 +234,7 @@ class SearcherBase:
         return re.sub(r'\s+', ' ', title).strip()
 
 
-    @asyncio.coroutine
-    def _search(self, title, episodes, date, min_size, quality):
+    async def _search(self, title, episodes, date, min_size, quality):
         """
         Must return a dict of episode -> [list of SearchResult objects].  A
         special key of None means the SearchResult list is not yet mapped
@@ -247,9 +246,8 @@ class SearcherBase:
         raise NotImplementedError
 
 
-    @asyncio.coroutine
-    def search(self, series, episodes, date=None, min_size=None, ideal_size=None, quality='HD'):
-        results = yield from self._search(series, episodes, date, min_size, quality)
+    async def search(self, series, episodes, date=None, min_size=None, ideal_size=None, quality='HD'):
+        results = await self._search(series, episodes, date, min_size, quality)
         # Categorize SearchResults not assigned to episodes.
         if None in results:
             for result in results[None]:
@@ -297,8 +295,7 @@ class SearcherBase:
         return results
 
 
-    @asyncio.coroutine
-    def _get_retriever_data(self, search_result):
+    async def _get_retriever_data(self, search_result):
         """
         Returns type-specific retriever data for the given search result.
 
@@ -387,8 +384,7 @@ class SearchResult:
         return self._get_searcher()._check_results_equal(self, other)
 
 
-    @asyncio.coroutine
-    def get_retriever_data(self, force=False):
+    async def get_retriever_data(self, force=False):
         """
         Fetch whatever data is needed for a retriever to fetch this result.
 
@@ -408,7 +404,7 @@ class SearchResult:
             # retrievers may call get_retriever_data() multiple times (for
             # multiple retriever plugins) but the actual operation could be
             # expensive (e.g. fetching a torrent or nzb file off the network).
-            self._rdata = yield from self._get_searcher()._get_retriever_data(self)
+            self._rdata = await self._get_searcher()._get_retriever_data(self)
 
         if not self._rdata:
             # This shouldn't happen.  It's a bug in the searcher, which should

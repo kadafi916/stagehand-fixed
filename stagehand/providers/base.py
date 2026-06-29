@@ -4,8 +4,7 @@ import asyncio
 from ..toolbox.net import download
 from ..utils import ElementParser
 
-@asyncio.coroutine
-def parse_xml(what, nest=[]):
+async def parse_xml(what, nest=[]):
     results = []
     def handle(element):
         info = {}
@@ -25,7 +24,7 @@ def parse_xml(what, nest=[]):
     parser.setContentHandler(e)
 
     if isinstance(what, str) and what.startswith('http'):
-        status, data = yield from download(what, retry=4)
+        status, data = await download(what, retry=4)
         if status != 200:
             raise ValueError('download failed with http status %d' % status)
         parser.feed(data)

@@ -814,7 +814,7 @@ class Container(Base):
                     replace.first = False
                     return ret
                 replace.first = True
-                cfgstr = re.sub(re.compile('^%s\[\d+\]' % re.escape(fqn), re.M), replace, cfgstr)
+                cfgstr = re.sub(re.compile(r'^%s\[\d+\]' % re.escape(fqn), re.M), replace, cfgstr)
 
             var_strings.append(cfgstr)
             if '\n' in cfgstr:
@@ -1307,8 +1307,8 @@ class Config(Group):
                     obj = getattr(obj, key)
             return obj
 
-        line_regexp = re.compile('^([a-zA-Z0-9_-]+|\[.*?\]|\.)+ *= *(.*)')
-        key_regexp = re.compile('(([a-zA-Z0-9_-]+)|(\[.*?\]))')
+        line_regexp = re.compile(r'^([a-zA-Z0-9_-]+|\[.*?\]|\.)+ *= *(.*)')
+        key_regexp = re.compile(r'(([a-zA-Z0-9_-]+)|(\[.*?\]))')
 
         self._loaded_hash_schema = None
         self._loaded_hash_values = None

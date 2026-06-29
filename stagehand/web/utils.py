@@ -11,7 +11,7 @@ import asyncio
 
 from . import bottle
 from . import server as web
-from .async import asyncweb
+from .asyncweb import asyncweb
 from ..config import config
 from ..coffee import cscompile_with_cache, CSCompileError
 from ..utils import abspath_to_zippath, get_file_from_zip
@@ -145,7 +145,7 @@ def _render_cstemplate(fname, kwargs):
     })
     session = web.request.cookies['stagehand.session']
     if session:
-        kwargs['async'] = asyncweb.pop_finished_jobs(session)
+        kwargs['asyncdata'] = asyncweb.pop_finished_jobs(session)
     # Now render the template.
     return bottle.template(fname, template_adapter=CSTemplate, **kwargs)
 
@@ -158,16 +158,11 @@ def shview(fname):
     asyncio.
     """
     def decorator(func):
-        if inspect.isgeneratorfunction(func):
-            # Decorated function is a generator, so wrap with a generator that
-            # can yield back to the main loop before rendering the template.
-            def wrapper(*args, **kwargs):
-                res = func(*args, **kwargs)
-                if isinstance(res, asyncio.Future) or inspect.isgenerator(res):
-                    res = yield from res
+        if asyncio.iscoroutinefunction(func):
+            async def wrapper(*args, **kwargs):
+                res = await func(*args, **kwargs)
                 return _render_cstemplate(fname, res)
         else:
-            # Decorated function is a normal function.
             def wrapper(*args, **kwargs):
                 return _render_cstemplate(fname, func(*args, **kwargs))
         return functools.wraps(func)(wrapper)

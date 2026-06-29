@@ -521,9 +521,9 @@ def synchronized(func):
     """
     lock = asyncio.Lock()
     @wraps(func)
-    def wrapper(*args, **kwargs):
-        with (yield from lock):
-            return (yield from func(*args, **kwargs))
+    async def wrapper(*args, **kwargs):
+        async with lock:
+            return await func(*args, **kwargs)
     return wrapper
 
 
@@ -535,8 +535,7 @@ def _singleton_coroutine(func):
         if task and not task.done():
             return task
         else:
-            loop = kwargs.get('loop') or asyncio.get_event_loop()
-            task = asyncio.Task(func(*args, **kwargs), loop=loop)
+            task = asyncio.ensure_future(func(*args, **kwargs))
             return task
     return wrapper
 

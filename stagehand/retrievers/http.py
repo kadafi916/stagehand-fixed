@@ -40,18 +40,18 @@ class Retriever(RetrieverBase):
         log.debug('[%s %s] %d KB/s, %d KB / %d KB', ep.series.name, ep.code, progress.speed/1024, progress.pos/1024, progress.max/1024)
 
 
-    @asyncio.coroutine
-    def _retrieve(self, progress, episode, result, outfile):
+    async def _retrieve(self, progress, episode, result, outfile):
         """
         Retrieve the given SearchResult object.
         """
-        rdata = yield from result.get_retriever_data()
+        rdata = await result.get_retriever_data()
         if not rdata.get('url'):
             raise RetrieverError('Searcher did not provide a URL')
 
         opts = {}
         if 'username' in rdata:
-            opts['auth'] = rdata['username'], rdata.get('password', '')
+            import aiohttp
+            opts['auth'] = aiohttp.BasicAuth(rdata['username'], rdata.get('password', ''))
         if 'retry' in rdata:
             opts['retry'] = rdata['retry']
 
@@ -61,12 +61,12 @@ class Retriever(RetrieverBase):
 
         log.debug('fetching %s', rdata['url'])
         progress.connect(self._download_progress_cb, episode)
-        task = asyncio.Task(download(rdata['url'], outfile, progress=progress, **opts))
+        task = asyncio.ensure_future(download(rdata['url'], outfile, progress=progress, **opts))
         self._loop.call_later(1, self._verify_timer, progress, episode, result, outfile, task)
 
         try:
             task.cancelmsg = None
-            status, c = yield from task
+            status, c = await task
         except asyncio.CancelledError:
             if task.cancelmsg:
                 raise RetrieverAbortedSoft(*task.cancelmsg)
@@ -75,7 +75,7 @@ class Retriever(RetrieverBase):
         finally:
             progress.disconnect(self._download_progress_cb)
 
-        if status == 416 and c.content_length_download == 0:
+        if status == 416:
             log.info('file already fully retrieved')
         elif status not in (200, 206):
             raise RetrieverError('Status %d != 200' % status)

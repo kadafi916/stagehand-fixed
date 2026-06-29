@@ -8,6 +8,7 @@ import asyncio
 from .base import ProviderBase, ProviderSearchResultBase, ProviderError
 from ..toolbox import db
 from ..toolbox.net import download
+from ..toolbox.utils import tostr
 from ..config import config
 
 __all__ = ['Provider']
@@ -79,21 +80,19 @@ class Provider(ProviderBase):
         )
 
 
-    @asyncio.coroutine
-    def _api(self, path):
-        status, data = yield from download(self.hostname + path, retry=4)
+    async def _api(self, path):
+        status, data = await download(self.hostname + path, retry=4)
         log.debug('API %s returned status %d', path, status)
         if status != 200:
             log.debug('API %s returned status %d', path, status)
         return status, json.loads(data.decode('utf8')) if data else None
 
 
-    @asyncio.coroutine
-    def search(self, name):
+    async def search(self, name):
         results = []
         quoted = urllib.parse.quote(name.replace('-', ' ').replace('_', ' '))
         log.info('searching TVmaze for %s', name)
-        status, response = yield from self._api('/search/shows?q=' + quoted)
+        status, response = await self._api('/search/shows?q=' + quoted)
         if status == 200:
             if not isinstance(response, list):
                 log.warning('response malformed (expected list, got %s)', type(response))
@@ -103,8 +102,7 @@ class Provider(ProviderBase):
         return results
 
 
-    @asyncio.coroutine
-    def get_series(self, id):
+    async def get_series(self, id):
         log.debug('retrieving series data for %s', id)
         if not self.get_last_updated():
             # DB doesn't know about server time.  Set to current time so that
@@ -114,7 +112,7 @@ class Provider(ProviderBase):
 
         series = {'episodes': []}
         log.info('fetching series %s from TVmaze', id)
-        status, response = yield from self._api('/shows/' + id)
+        status, response = await self._api('/shows/' + id)
         if status != 200:
             return series
         elif 'id' not in response:
@@ -143,7 +141,7 @@ class Provider(ProviderBase):
         else:
             if missing:
                 log.debug('refresh series banner %s', image_url)
-                status, banner_data = yield from download(image_url, retry=3)
+                status, banner_data = await download(image_url, retry=3)
                 if status == 200:
                     series['banner_data'] = banner_data
                 else:
@@ -169,7 +167,7 @@ class Provider(ProviderBase):
             'imdbid': response.get('externals', {}).get('imdb')
         })
 
-        status, response = yield from self._api('/shows/{}/episodes'.format(id))
+        status, response = await self._api('/shows/{}/episodes'.format(id))
         if status == 200 and isinstance(response, list):
             for episode in response:
                 series['episodes'].append({
@@ -186,8 +184,7 @@ class Provider(ProviderBase):
         return series
 
 
-    @asyncio.coroutine
-    def get_changed_series_ids(self):
+    async def get_changed_series_ids(self):
         servertime = self.get_last_updated()
         if not servertime:
             # No servertime stored, so there must not be any series in db.
@@ -195,7 +192,7 @@ class Provider(ProviderBase):
 
         now = int(time.time())
         ids = []
-        status, response = yield from self._api('/updates/shows')
+        status, response = await self._api('/updates/shows')
         if status == 200 and isinstance(response, dict):
             for id, timestamp in response.items():
                 if timestamp > servertime:

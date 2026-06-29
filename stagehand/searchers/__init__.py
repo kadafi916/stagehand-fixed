@@ -11,18 +11,16 @@ log = logging.getLogger('stagehand.searchers')
 
 plugins, broken_plugins = load_plugins('searchers', ['easynews'])
 
-@asyncio.coroutine
-def start(manager):
+async def start(manager):
     """
     Called when the manager is starting.
     """
-    yield from invoke_plugins(plugins, 'start', manager)
+    await invoke_plugins(plugins, 'start', manager)
     for name, error in broken_plugins.items():
         log.warning('failed to load searcher plugin %s: %s', name, error)
 
 
-@asyncio.coroutine
-def search(series, episodes, skip=[], loop=None):
+async def search(series, episodes, skip=[], loop=None):
     try:
         earliest = min(ep.airdate for ep in episodes if ep.airdate)
     except ValueError:
@@ -52,7 +50,7 @@ def search(series, episodes, skip=[], loop=None):
         tried.add(name)
         searcher = plugins[name].Searcher(loop=loop)
         try:
-            results = yield from searcher.search(series, episodes, earliest, min_size_bytes, ideal_size_bytes, series.cfg.quality)
+            results = await searcher.search(series, episodes, earliest, min_size_bytes, ideal_size_bytes, series.cfg.quality)
         except SearcherError as e:
             log.error('%s failed: %s', name, e.args[0])
         except Exception:

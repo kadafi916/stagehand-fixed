@@ -39,37 +39,32 @@ The core of Stagehand is quite robust, but many essential features are missing:
 
 ## How to run it
 
-Stagehand is powered by Python and requires a Python version between 3.3 and 3.6.
-
-This max Python version restriction is obviously problematic, but fixing it requires
-nontrivial changes.  Consequently, we use a Docker image to ensure compatibility.
-
-The Docker image is available at
-[`jtackaberry/stagehand`](https://hub.docker.com/r/jtackaberry/stagehand).  This is the
-simplest way to run it -- change `/data/tv` below with the path where you want to hold
-downloaded episodes:
+Stagehand requires Python 3.11 or later. The included `Dockerfile` builds a working
+image from source using Python 3.13.
 
 ```bash
-docker run -ti -u $UID:$UID --net=host -v $HOME:/stagehand -v /data/tv:/stagehand/tv jtackaberry/stagehand
+# Generate config modules from their XML sources (one-time, or after pulling changes)
+python3 -c "
+from stagehand.toolbox import xmlconfig
+xmlconfig.convert('stagehand/config.cxml', 'stagehand/config.py', 'stagehand', 'stagehand.toolbox.config')
+xmlconfig.convert('stagehand/searchers/easynews_config.cxml', 'stagehand/searchers/easynews_config.py', 'stagehand.searchers', 'stagehand.toolbox.config')
+xmlconfig.convert('stagehand/notifiers/email_config.cxml', 'stagehand/notifiers/email_config.py', 'stagehand.notifiers', 'stagehand.toolbox.config')
+xmlconfig.convert('stagehand/notifiers/xbmc_config.cxml', 'stagehand/notifiers/xbmc_config.py', 'stagehand.notifiers', 'stagehand.toolbox.config')
+"
+
+docker build -t stagehand .
+
+docker run -ti -p 8088:8088 \
+  -v $HOME/.config/stagehand:/root/.config/stagehand \
+  -v /data/tv:/tv \
+  stagehand
 ```
 
-If things are working properly, you should see output that looks like this:
+Change `/data/tv` to the path where you want downloaded episodes stored.
 
-```
-2022-05-20 20:11:38,655 [INFO] stagehand: starting Stagehand 0.3.3
-2022-05-20 20:11:38,662 [INFO] manager: watching /stagehand/.config/stagehand/config for changes
-2022-05-20 20:11:38,680 [INFO] manager: scheduling next episode check for 2022-05-20 21:06:00
-2022-05-20 20:11:38,682 [INFO] manager: checking for new episodes and availability
-2022-05-20 20:11:38,692 [INFO] manager: no new episodes; we are all up to date
-2022-05-20 20:11:38,696 [INFO] stagehand.web: started webserver at http://faith:8088/
-2022-05-20 20:11:38,697 [INFO] manager: checking all epsiodes to see if any need resuming
-2022-05-20 20:11:38,697 [INFO] manager: stagehand started, waiting for next new episodes check
-```
+The web interface will be available at `http://localhost:8088`.
 
-Note the webserver URL in the output above.  You should be able to browse to this URL from
-within your network.  Before proceeding with configuration, ensure that it's reachable.
-
-👉 You can daemonize the container by replacing `-ti` in the command line above with `-d`.
+👉 You can daemonize the container by adding `-d` to the `docker run` command.
 
 
 ## How to configure it

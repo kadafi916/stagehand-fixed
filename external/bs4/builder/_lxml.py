@@ -8,6 +8,8 @@ __all__ = [
 from io import BytesIO
 from io import StringIO
 import collections
+import collections.abc
+collections.Callable = collections.abc.Callable
 from lxml import etree
 from bs4.element import (
     Comment,

@@ -101,16 +101,15 @@ def reload(mgr):
     log.warning('received SIGHUP: purging in-memory caches and reloading config')
     config.load()
     mgr.tvdb.purge_caches()
-    loop.call_soon(asyncio.async, mgr.check_new_episodes())
+    loop.call_soon(asyncio.ensure_future, mgr.check_new_episodes())
 
 
 def resync(mgr):
     log.warning('received SIGUSR1: refreshing thetvdb')
-    loop.call_soon(asyncio.async, mgr.tvdb.sync())
+    loop.call_soon(asyncio.ensure_future, mgr.tvdb.sync())
 
 
-@asyncio.coroutine
-def web_start_server(mgr, args):
+async def web_start_server(mgr, args):
     web.TEMPLATE_PATH[:] = [os.path.join(mgr.paths.data, 'web')]
     webkwargs = {}
     if config.web.username:
@@ -129,7 +128,7 @@ def web_start_server(mgr, args):
     ports = [args.port or int(config.web.port)] + list(range(8088, 8100)) + list(range(18088, 18100))
     for port in ports:
         try:
-            yield from web.start(port=port, log=logging.getLogger('stagehand.http'), userdata=userdata, **webkwargs)
+            await web.start(port=port, log=logging.getLogger('stagehand.http'), userdata=userdata, **webkwargs)
         except OSError as e:
             if e.errno in (errno.EACCES, errno.EADDRINUSE):
                 log.error('could not start webserver on port %d: %s', port, str(e))
@@ -162,7 +161,7 @@ def web_config_changed(mgr, args, var, old, new):
     """
     web.stop()
     log.warning('restarting webserver due to changed configuration')
-    asyncio.async(web_start_server(mgr, args))
+    asyncio.ensure_future(web_start_server(mgr, args))
 
 
 def call_rest_api(path):
@@ -174,18 +173,16 @@ def call_rest_api(path):
         return
 
     data = None
-    @asyncio.coroutine
-    def _call(url):
+    async def _call(url):
         nonlocal data
         try:
-            # FIXME: auth won't actually work.  Server uses digest, but
-            # aiohttp only supports basic.
-            response = yield from aiohttp.request('GET', url, auth=(config.web.username, config.web.password))
-        except aiohttp.OsConnectionError:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as response:
+                    data = await response.read()
+                    if response.status != 200:
+                        log.error('request failed (status %s): %s', response.status, tostr(data))
+        except aiohttp.ClientConnectionError:
             return
-        data = yield from response.read_and_close()
-        if response.status != 200:
-            log.error('request failed (status %s): %s', response.status, tostr(data))
 
     loop = asyncio.get_event_loop()
     loop.run_until_complete(_call('http://localhost:{}{}'.format(port, path)))
@@ -279,8 +276,8 @@ def main():
     loop.run_until_complete(platform.start(mgr))
 
     config.web.add_monitor(functools.partial(web_config_changed, mgr, args))
-    asyncio.async(web_start_server(mgr, args))
-    asyncio.async(mgr.start())
+    asyncio.ensure_future(web_start_server(mgr, args))
+    asyncio.ensure_future(mgr.start())
 
     if sys.platform != 'win32':
         loop.add_signal_handler(signal.SIGHUP, reload, mgr)

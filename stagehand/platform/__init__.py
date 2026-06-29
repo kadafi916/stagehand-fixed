@@ -4,12 +4,11 @@ from ..utils import load_plugins, invoke_plugins
 
 plugins, broken_plugins = load_plugins('platform', ['win32'])
 
-@asyncio.coroutine
-def start(manager):
+async def start(manager):
     """
     Called when the manager is starting.
     """
-    yield from invoke_plugins(plugins, 'start', manager)
+    await invoke_plugins(plugins, 'start', manager)
 
 
 

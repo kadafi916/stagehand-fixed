@@ -425,8 +425,7 @@ class Series:
         pseries = dict((p, self._dbattr(p.CACHEATTR)) for p in self.providers if self._dbattr(p.CACHEATTR))
         return self._db._get_conflicts(pseries)
 
-    @asyncio.coroutine
-    def change_provider(self, provider):
+    async def change_provider(self, provider):
         old = self.provider
         try:
             new = self._db.providers[provider] if isinstance(provider, str) else provider
@@ -438,15 +437,14 @@ class Series:
             # to the current provider.
             fast = new in self.providers
             log.info('changing provider for %s (%s) from %s to %s (fast=%s)', self.id, self.name, old.NAME, new.NAME, fast)
-            yield from self._db._update_series(old, self._dbattr(old.IDATTR), dirty=[], preferred=new, fast=fast)
+            await self._db._update_series(old, self._dbattr(old.IDATTR), dirty=[], preferred=new, fast=fast)
 
 
-    @asyncio.coroutine
-    def refresh(self):
+    async def refresh(self):
         """
         Refreshes metadata from the series providers.
         """
-        yield from self._db._update_series(self.provider, self._dbattr(self.provider.IDATTR), dirty=self.providers)
+        await self._db._update_series(self.provider, self._dbattr(self.provider.IDATTR), dirty=self.providers)
 
 
     @property
@@ -738,8 +736,7 @@ class TVDB(db.Database):
         self._series_cache_list = list(set(cache.values()))
 
 
-    @asyncio.coroutine
-    def _invoke_providers(self, method, *args, **kwargs):
+    async def _invoke_providers(self, method, *args, **kwargs):
         """
         Invokes a method on all providers simultaenously, waits until all
         are finished, and returns a list of 2-tuples (provider, results).
@@ -763,11 +760,11 @@ class TVDB(db.Database):
         # the done list below may not be in the same order we passed.
         tasks = []
         for provider, coroutine in zip(which, coroutines):
-            task = asyncio.Task(coroutine)
+            task = asyncio.ensure_future(coroutine)
             task.provider = provider
             tasks.append(task)
 
-        done, pending = yield from asyncio.wait(tasks)
+        done, pending = await asyncio.wait(tasks)
 
         # Remove exceptions from the results list and log them.
         results = []
@@ -1092,16 +1089,15 @@ class TVDB(db.Database):
 
 
     @synchronized
-    @asyncio.coroutine
-    def _update_series(self, provider, id, dirty=[], preferred=None, fast=False, completed=None):
+    async def _update_series(self, provider, id, dirty=[], preferred=None, fast=False, completed=None):
         """
         Wraps _do_update_series() to keep track of per-series tasks.
 
         Needed in order to cancel active update tasks on delete.
         """
-        task = asyncio.Task(self._do_update_series(provider, id, dirty, preferred, fast, completed))
+        task = asyncio.ensure_future(self._do_update_series(provider, id, dirty, preferred, fast, completed))
         self._track_update_task(provider, id, task)
-        r = (yield from task)
+        r = (await task)
         if r is None:
             # If _do_update_series() returns None then we're done and can stop
             # tracking the task.  Otherwise it's because it spawned a new task to
@@ -1110,8 +1106,7 @@ class TVDB(db.Database):
         return r
 
 
-    @asyncio.coroutine
-    def _do_update_series(self, provider, id, dirty=[], preferred=None, fast=False, completed=None):
+    async def _do_update_series(self, provider, id, dirty=[], preferred=None, fast=False, completed=None):
         """
         Add or update a series with the local database, retrieving metadata from
         one or more providers as needed.
@@ -1177,7 +1172,7 @@ class TVDB(db.Database):
                 # Need to fetch series data for this provider.  This happens when
                 # there is no existing object, no cache for the provider, or the
                 # provider is in the dirty list.
-                pseries[provider] = yield from provider.get_series(id)
+                pseries[provider] = await provider.get_series(id)
                 del pids[provider]
                 if provider in dirty:
                     dirty.remove(provider)
@@ -1190,7 +1185,7 @@ class TVDB(db.Database):
                 # what we have now, call ourselves back with fast=False, and
                 # return back to the caller.
                 completed = Signal()
-                task = asyncio.Task(self._do_update_series(provider, id, dirty, fast=False, completed=completed))
+                task = asyncio.ensure_future(self._do_update_series(provider, id, dirty, fast=False, completed=completed))
                 # Replace tracked task with this new one
                 self._track_update_task(provider, id, task)
                 # Generally, ip.finished won't be True, although this happens during testing
@@ -1216,16 +1211,16 @@ class TVDB(db.Database):
                 # providers we need to get its name and start date.  If
                 # this fails we can't continue, so no point catching
                 # any exception get_series() raises.
-                pseries[provider] = s = yield from provider.get_series(id)
+                pseries[provider] = s = await provider.get_series(id)
                 name, started = s['name'], s['started']
                 # We just fetched it, so delete provider from pids.
                 del pids[provider]
 
             # Issue a search by name for all providers missing series ids.  First remove
             # any year or date in brackets from the name.
-            name = re.sub('\([\d-]+\)', '', name).strip()
+            name = re.sub(r'\([\d-]+\)', '', name).strip()
             log.info('searching for %s on provider(s) %s', name, ', '.join(p.NAME for p in missing))
-            for p, results in (yield from self._invoke_providers('search', name, which=missing)):
+            for p, results in (await self._invoke_providers('search', name, which=missing)):
                 normname = self._normalize_name(name)
                 normnameaggr = self._normalize_name(name, aggressive=True)
                 # List of series dicts that we consider a match
@@ -1267,7 +1262,7 @@ class TVDB(db.Database):
                     log.debug('no definitive matches for %s from %s, trying less likely options.', name, p.NAME)
                     for result in maybe:
                         log.debug('retrieving possible match %s (%s) from %s', result.name, result.id, p.NAME)
-                        s = yield from p.get_series(self._parse_id(result.id)[1])
+                        s = await p.get_series(self._parse_id(result.id)[1])
                         tpseries = dict(list(pseries.items()) + [(p, s)])
                         if not pseries and existing and preferred.CACHEATTR in existing:
                             # We have existing series data but pseries is empty, which means
@@ -1296,7 +1291,7 @@ class TVDB(db.Database):
             # We need to fetch series from the server.
             which = dict((p, (sid,)) for p, sid in pids.items())
             # FIXME: if some providers failed, we need a retry mechanism.
-            results = yield from self._invoke_providers('get_series', which=which)
+            results = await self._invoke_providers('get_series', which=which)
             if not results and not pseries:
                 # No results from server and no existing (cached) series dict.
                 # We're stuck.
@@ -1458,18 +1453,16 @@ class TVDB(db.Database):
                 return series
 
 
-    @asyncio.coroutine
-    def search(self, name, provider='thetvdb'):
+    async def search(self, name, provider='thetvdb'):
         """
         Search for a series
         """
         which = [self.providers[provider]]
-        results = yield from self._invoke_providers('search', name, which=which, bubble=True)
+        results = await self._invoke_providers('search', name, which=which, bubble=True)
         return list(itertools.chain.from_iterable(l for p, l in results))
 
 
-    @asyncio.coroutine
-    def add_series_by_id(self, id, fast=True):
+    async def add_series_by_id(self, id, fast=True):
         """
         Adds the TV series specified by the provider id to the local database.
 
@@ -1494,7 +1487,7 @@ class TVDB(db.Database):
         series = self.query_one(type='series', **{provider.IDATTR: pid})
 
         if not series:
-            yield from self._update_series(provider, pid, fast=fast)
+            await self._update_series(provider, pid, fast=fast)
             series = self.query_one(type='series', **{provider.IDATTR: pid})
             if not series:
                 return
@@ -1503,8 +1496,7 @@ class TVDB(db.Database):
 
 
     @synchronized
-    @asyncio.coroutine
-    def sync(self, force=False):
+    async def sync(self, force=False):
         """
         Sync database with all metadata providers.
         """
@@ -1513,7 +1505,7 @@ class TVDB(db.Database):
         log.info('syncing with TV metadata providers')
         changed = {}  # series -> [provider, ...]
         self._build_series_cache()
-        for provider, ids in (yield from self._invoke_providers('get_changed_series_ids')):
+        for provider, ids in (await self._invoke_providers('get_changed_series_ids')):
             if not ids:
                 continue
             for id in ids:
@@ -1525,17 +1517,16 @@ class TVDB(db.Database):
         # (mine series cache for ids)
         for series, dirty in changed.items():
             log.info('refreshing "%s" for provider(s) %s', series.name, ', '.join(p.NAME for p in dirty))
-            yield from self._update_series(dirty[0], series._dbattr(dirty[0].IDATTR), dirty)
+            await self._update_series(dirty[0], series._dbattr(dirty[0].IDATTR), dirty)
         log.info('updated %d series from providers', len(changed))
         return len(changed)
 
 
-    @asyncio.coroutine
-    def add_series_by_search_result(self, result):
+    async def add_series_by_search_result(self, result):
         """
         Adds a new series given a SearchResult to the database.
         """
-        return (yield self.add_series_by_id(result.id))
+        return await self.add_series_by_id(result.id)
 
 
     def delete_series(self, series):

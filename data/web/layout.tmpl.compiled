@@ -78,7 +78,7 @@
 
 <script type='text/javascript'>
 (function() {
-  var async;
+  var asyncdata;
 
   $("#m-{{section}}").addClass('active');
 
@@ -119,9 +119,9 @@
     }
   });
 
-  async = {{!json(async)}};
+  asyncdata = {{!json(asyncdata)}};
 
-  stagehand.handle_response(async);
+  stagehand.handle_response(asyncdata);
 
 }).call(this);
 </script>

@@ -132,12 +132,11 @@ class Server:
         return client
 
 
-    @asyncio.coroutine
-    def start(self, address='', *, loop=None):
+    async def start(self, address='', *, loop=None):
         if not loop:
             loop = asyncio.get_event_loop()
         self._loop = loop
-        self._server = yield from loop.create_unix_server(self._make_client_channel, address)
+        self._server = await loop.create_unix_server(self._make_client_channel, address)
 
 
     def stop(self):
@@ -398,11 +397,7 @@ class Channel(asyncio.Protocol):
                 return
 
             if asyncio.iscoroutine(result):
-                # The registered function is a coroutine so wrap it in a Task
-                # so it continues to execute.   Since Task subclasses Future,
-                # the next block of code will add a done callback to send the
-                # result back to the caller.
-                result = asyncio.Task(result)
+                result = asyncio.ensure_future(result)
             if isinstance(result, asyncio.Future):
                 def _done_cb(future):
                     try:
@@ -689,47 +684,43 @@ class Client(Channel):
         self.signals.add('connected')
 
 
-    @asyncio.coroutine
-    def _connect(self, address):
+    async def _connect(self, address):
         try:
             self.state = Client.CONNECTING
-            transport, channel = yield from self._loop.create_unix_connection(lambda: self, address)
-            yield from channel.signals['authenticated'].future()
+            transport, channel = await self._loop.create_unix_connection(lambda: self, address)
+            await channel.signals['authenticated'].future()
             self.state = Client.CONNECTED
         except:
             self.state = Client.DISCONNECTED
             raise
 
 
-    @asyncio.coroutine
-    def _connect_with_retry(self, address, retry=None, return_on_connect=True):
+    async def _connect_with_retry(self, address, retry=None, return_on_connect=True):
         while True:
             try:
                 if self.state == Client.DISCONNECTED:
-                    yield from self._connect(address)
+                    await self._connect(address)
                     if return_on_connect:
                         return
                 else:
-                    yield from self.signals['closed'].future()
+                    await self.signals['closed'].future()
                     self.state = Client.DISCONNECTED
             except Exception as e:
                 if not retry:
                     raise
-            yield from asyncio.sleep(retry)
+            await asyncio.sleep(retry)
 
 
-    @asyncio.coroutine
-    def connect(self, address, retry=None):
-        yield from self._connect_with_retry(address, retry)
+    async def connect(self, address, retry=None):
+        await self._connect_with_retry(address, retry)
         if retry:
-            asyncio.Task(self._connect_with_retry(address, retry, return_on_connect=False))
+            asyncio.ensure_future(self._connect_with_retry(address, retry, return_on_connect=False))
         return self
 
 
-@asyncio.coroutine
-def connect(address, auth_secret=b'', retry=None, *, loop=None):
+async def connect(address, auth_secret=b'', retry=None, *, loop=None):
     client = Client(auth_secret, loop=loop)
-    yield from client.connect(address, retry)
+    await client.connect(address, retry)
     return client
 
 

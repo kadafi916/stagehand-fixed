@@ -1,4 +1,5 @@
 import sys
+import io
 import os
 import time
 import asyncio
@@ -9,7 +10,8 @@ import logging
 import socket
 from hashlib import md5
 
-from aiohttp.wsgi import WSGIServerHttpProtocol
+import aiohttp.web
+
 from ...toolbox import tobytes, tostr
 from . import bottle
 from .bottle import Bottle, HTTPResponse, HTTPError, tob, _e, html_escape, DEBUG, RouteReset
@@ -30,7 +32,6 @@ class LoggingMiddleware:
 
 
     def __call__(self, environ, start_response):
-        # Default log level for this call.  The handler can modify it.
         bottle.response.loglevel = logging.INFO
         bottle.response.logextra = None
         t0 = time.time()
@@ -71,9 +72,7 @@ class AuthMiddleware:
         response = environ.get('HTTP_AUTHORIZATION')
         if not response or not response.lower().startswith('digest '):
             return False
-        # Parse response into a list of 2-tuples (key, value)
         parts = (f.strip().split('=', 1) for f in response[7:].split(',') if '=' in f)
-        # Remove enclosing quotes and toss into a dict.
         rdict = dict((k.lower(), tobytes(v.strip('"'))) for k, v in parts)
         HA1 = md5(b':'.join([self._user, rdict.get('realm'), self._passwd])).hexdigest()
         HA2 = md5(b':'.join([environ.get('REQUEST_METHOD').encode(), rdict.get('uri')])).hexdigest()
@@ -84,7 +83,6 @@ class AuthMiddleware:
     def _auth_failed(self, environ, start_response):
         now = tobytes(int(time.time()), coerce=True)
         nonce = now + b'/' + tobytes(md5(now + self._nonce_passwd).hexdigest())
-        # TODO: advertise qop and support cnonce
         response_headers = [
             ('WWW-Authenticate', 'Digest realm="Secure Area", nonce="%s", algorithm=MD5' % tostr(nonce)),
             ('Content-Type', 'text/html')
@@ -106,11 +104,7 @@ class UserDataMiddleware:
 
 
 class AsyncBottle(Bottle):
-    """
-    This class is lifted from https://github.com/Lupino/aiobottle with
-    modifications.
-    """
-    def _handle(self, environ):
+    async def _handle(self, environ):
         path = environ['bottle.raw_path'] = environ['PATH_INFO']
         try:
             environ['PATH_INFO'] = tostr(path)
@@ -126,8 +120,8 @@ class AsyncBottle(Bottle):
                 environ['bottle.route'] = route
                 environ['route.url_args'] = args
                 out = route.call(**args)
-                if isinstance(out, asyncio.Future) or inspect.isgenerator(out):
-                    out = yield from out
+                if asyncio.iscoroutine(out) or isinstance(out, asyncio.Future):
+                    out = await out
                 return out
             finally:
                 self.trigger_hook("after_request")
@@ -135,7 +129,7 @@ class AsyncBottle(Bottle):
             return _e()
         except RouteReset:
             route.reset()
-            return (yield from self._handle(environ))
+            return (await self._handle(environ))
         except (KeyboardInterrupt, SystemExit, MemoryError):
             raise
         except Exception:
@@ -155,15 +149,14 @@ class AsyncBottle(Bottle):
         return super()._cast(out, peek)
 
 
-    def wsgi(self, environ, start_response):
-        """ The bottle WSGI-interface. """
+    async def wsgi(self, environ, start_response):
         response = bottle.response
         try:
-            out = self._cast((yield from self._handle(environ)))
-            # rfc2616 section 4.3
-            if response._status_code in (100, 101, 204, 304)\
+            out = self._cast(await self._handle(environ))
+            if response._status_code in (100, 101, 204, 304) \
             or environ['REQUEST_METHOD'] == 'HEAD':
-                if hasattr(out, 'close'): out.close()
+                if hasattr(out, 'close'):
+                    out.close()
                 out = []
             start_response(response._status_line, response.headerlist)
             return out
@@ -183,40 +176,41 @@ class AsyncBottle(Bottle):
             return [tob(err)]
 
 
-    def _copy_response(self, src, dst):
-            dst._status_line = src._status_line
-            dst._status_code = src._status_code
-            dst._cookies = src._cookies
-            dst._headers = src._headers
-            dst.body = src.body
+    async def __call__(self, environ, start_response):
+        bottle.request.bind(environ)
+        bottle.response.bind()
+        return await self.wsgi(environ, start_response)
 
 
-    def __call__(self, environ, start_response):
-        ''' Each instance of :class:'Bottle' is a WSGI application. '''
-        # Bottle uses thread-local variables for request and response.  This
-        # is fine for the standard WSGI model in which the entire request is
-        # completed by a single invocation of the handler, but in a world of
-        # coroutines it's rather broken because request handlers can be
-        # interleaved even within a single thread.
-        #
-        # So we must explicitly context switch: restore the request environment
-        # and response attributes each time we enter the generator, and save
-        # it after the generator yields.
-        response = bottle.BaseResponse()
-        coro = self.wsgi(environ, start_response)
-        while True:
-            bottle.request.bind(environ)
-            self._copy_response(response, bottle.response)
-            try:
-                result = next(coro)
-            except StopIteration as e:
-                return e.args[0]
-            else:
-                # Not done, store response.
-                self._copy_response(bottle.response, response)
-                yield result
-
-
+def _build_environ(request, body):
+    environ = {
+        'REQUEST_METHOD': request.method,
+        'SCRIPT_NAME': '',
+        'PATH_INFO': request.path,
+        'QUERY_STRING': request.query_string,
+        'SERVER_NAME': request.url.host or 'localhost',
+        'SERVER_PORT': str(request.url.port or 80),
+        'SERVER_PROTOCOL': 'HTTP/1.1',
+        'wsgi.version': (1, 0),
+        'wsgi.url_scheme': request.scheme,
+        'wsgi.input': io.BytesIO(body),
+        'wsgi.errors': sys.stderr,
+        'wsgi.multithread': False,
+        'wsgi.multiprocess': False,
+        'wsgi.run_once': False,
+        'REMOTE_ADDR': request.remote or '127.0.0.1',
+        'CONTENT_TYPE': '',
+        'CONTENT_LENGTH': str(len(body)),
+    }
+    for key, value in request.headers.items():
+        ukey = key.upper().replace('-', '_')
+        if ukey == 'CONTENT_TYPE':
+            environ['CONTENT_TYPE'] = value
+        elif ukey == 'CONTENT_LENGTH':
+            environ['CONTENT_LENGTH'] = value
+        else:
+            environ['HTTP_' + ukey] = value
+    return environ
 
 
 class Server(bottle.ServerAdapter):
@@ -224,17 +218,17 @@ class Server(bottle.ServerAdapter):
         super().__init__(*args, **kwargs)
         self.app = AsyncBottle()
         self._last_args = {}
-        self._server = None
+        self._runner = None
         self._task = None
 
 
     def _create_server_done(self, f):
         self._task = None
         try:
-            self._server = f.result()
+            self._runner = f.result()
             log.info('started webserver at http://%s:%s/', self.host or socket.gethostname(), self.port)
-        except:
-            pass
+        except Exception as e:
+            log.error('failed to start webserver: %s', e)
 
 
     def start(self, **kwargs):
@@ -250,7 +244,6 @@ class Server(bottle.ServerAdapter):
         app.config.update(args)
         app.log = kwargs.get('log')
 
-        # Add middleware.
         if 'userdata' in kwargs:
             app = UserDataMiddleware(app, kwargs['userdata'])
         if kwargs.get('user'):
@@ -265,17 +258,54 @@ class Server(bottle.ServerAdapter):
 
 
     def run(self, handler):
-        def wsgi_app(env, start):
-            return handler(env, start)
+        async def wsgi_to_aiohttp(request):
+            body = await request.read()
+            environ = _build_environ(request, body)
 
-        f = self.loop.create_server(
-                lambda: WSGIServerHttpProtocol(wsgi_app, loop=self.loop, keep_alive=60, readpayload=True, access_log=None), self.host, self.port)
-        self._task = asyncio.Task(f, loop=self.loop)
+            response_info = {}
+            def start_response(status, headers, exc_info=None):
+                response_info['status'] = status
+                response_info['headers'] = list(headers)
+
+            result = handler(environ, start_response)
+            if asyncio.iscoroutine(result) or isinstance(result, asyncio.Future):
+                result = await result
+
+            body_parts = []
+            for part in (result or []):
+                if isinstance(part, bytes):
+                    body_parts.append(part)
+                elif isinstance(part, str):
+                    body_parts.append(part.encode('utf-8'))
+            response_body = b''.join(body_parts)
+
+            status_str = response_info.get('status', '200 OK')
+            status_code = int(status_str.split()[0])
+            skip_headers = {'transfer-encoding', 'content-length'}
+            headers = {}
+            for k, v in response_info.get('headers', []):
+                if k.lower() not in skip_headers:
+                    headers[k] = v
+
+            return aiohttp.web.Response(status=status_code, headers=headers, body=response_body)
+
+        aio_app = aiohttp.web.Application()
+        aio_app.router.add_route('*', '/{path_info:.*}', wsgi_to_aiohttp)
+        aio_app.router.add_route('*', '/', wsgi_to_aiohttp)
+
+        async def start():
+            runner = aiohttp.web.AppRunner(aio_app)
+            await runner.setup()
+            site = aiohttp.web.TCPSite(runner, self.host or None, self.port)
+            await site.start()
+            return runner
+
+        self._task = asyncio.ensure_future(start())
         self._task.add_done_callback(self._create_server_done)
 
 
     def stop(self):
-        if self._server:
+        if self._runner:
             log.warning('stopping web server')
-            self._server.close()
-            self._server = None
+            asyncio.ensure_future(self._runner.cleanup())
+            self._runner = None

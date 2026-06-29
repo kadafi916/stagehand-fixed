@@ -8,11 +8,10 @@ import platform
 import glob
 import shutil
 
-from distutils.command.build_scripts import build_scripts as _build_scripts
-from distutils.command.build_py import build_py as _build_py
-from distutils.cmd import Command
-from distutils.core import setup
-from distutils import log
+from setuptools.command.build_scripts import build_scripts as _build_scripts
+from setuptools.command.build_py import build_py as _build_py
+from setuptools import setup
+import logging as log
 
 # Import a couple modules from the source tree needed to build, but disable
 # generation of spurious pyc files.
@@ -199,6 +198,6 @@ setup(
     scripts=['build/stagehand'],
     packages=packages,
     package_dir=package_dir,
-    data_files=list(lsdata())
-
+    data_files=list(lsdata()),
+    install_requires=['aiohttp', 'beautifulsoup4']
 )

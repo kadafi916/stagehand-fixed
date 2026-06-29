@@ -14,7 +14,7 @@ from ..toolbox.config import get_description
 
 from . import server as web
 from . import api
-from .async import asyncweb, webcoroutine
+from .asyncweb import asyncweb, webcoroutine
 from .settings import rename_example
 from .utils import SessionPlugin, CachePlugin, shview, static_file_from_zip, abspath_to_zippath
 from ..utils import episode_status_icon_info

@@ -4,6 +4,7 @@ import urllib.parse
 import logging
 import re
 import asyncio
+import aiohttp
 from bs4 import BeautifulSoup
 
 from ..config import config
@@ -26,8 +27,7 @@ class Searcher(SearcherBase):
     DEFAULT_URL_GLOBAL5 = 'https://members.easynews.com/global5/index.html?gps={keywords}&sbj={subject}&from=&ns=&fil=&fex=&vc=&ac=&fty[]=VIDEO&s1=nsubject&s1d=%2B&s2=nrfile&s2d=%2B&s3=dsize&s3d=%2B&pby=500&u=1&svL=&d1={date}&d1t=&d2=&d2t=&b1={size}&b1t=&b2=&b2t=&px1={res}&px1t=&px2=&px2t=&fps1=&fps1t=&fps2=&fps2t=&bps1=&bps1t=&bps2=&bps2t=&hz1=&hz1t=&hz2=&hz2t=&rn1=&rn1t=&rn2=&rn2t=&fly=2&pno=1&sS=5'
 
 
-    @asyncio.coroutine
-    def _search_global5(self, title, codes, size, date, res):
+    async def _search_global5(self, title, codes, size, date, res):
         if not modconfig.username or not modconfig.password:
             raise ValueError('Configuration lacks username and/or password')
 
@@ -38,8 +38,8 @@ class Searcher(SearcherBase):
         url = modconfig.url or Searcher.DEFAULT_URL_GLOBAL5
         url = url.format(keywords=urllib.parse.quote_plus(title), subject=codes,
                          date=urllib.parse.quote_plus(date), size=size, res=res)
-        status, rss = yield from download(url, retry=modconfig.retries,
-                                          auth=(modconfig.username, modconfig.password))
+        status, rss = await download(url, retry=modconfig.retries,
+                                     auth=aiohttp.BasicAuth(modconfig.username, modconfig.password))
         if status != 200:
             # TODO: handle status codes like 401 (unauth)
             raise SearcherError('HTTP status not ok (%d)' % status)
@@ -47,8 +47,7 @@ class Searcher(SearcherBase):
         return rss
 
 
-    @asyncio.coroutine
-    def _search(self, series, episodes, date, min_size, quality):
+    async def _search(self, series, episodes, date, min_size, quality):
         title = series.cfg.search_string or series.name
         # Strip problem characters from the title, and substitute alternative apostrophe
         title = self.clean_title(title, apostrophe=Searcher.CLEAN_APOSTROPHE_REGEXP)
@@ -65,7 +64,7 @@ class Searcher(SearcherBase):
             codes = '|'.join(codelist)
             log.debug('searching for %d episodes, minimum size %s and res %s, keywords=%s subject=%s',
                       len(batch), size, res or 'any', title, codes)
-            rss = yield from self._search_global5(title, codes, size, date or '', res)
+            rss = await self._search_global5(title, codes, size, date or '', res)
             soup = BeautifulSoup(rss, 'html.parser')
             for item in soup.find_all('item'):
                 result = SearchResult(self)
@@ -81,8 +80,7 @@ class Searcher(SearcherBase):
         return {None: results}
 
 
-    @asyncio.coroutine
-    def _get_retriever_data(self, search_result):
+    async def _get_retriever_data(self, search_result):
         return {
             'url': search_result.url,
             'username': modconfig.username,

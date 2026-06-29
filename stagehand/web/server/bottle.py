@@ -35,13 +35,13 @@ if __name__ == '__main__':
     if _cmd_options.server and _cmd_options.server.startswith('gevent'):
         import gevent.monkey; gevent.monkey.patch_all()
 
-import base64, cgi, email.utils, functools, hmac, imp, itertools, mimetypes,\
-        os, re, subprocess, sys, tempfile, threading, time, warnings
+import base64, email.utils, functools, hmac, itertools, mimetypes,\
+        os, re, subprocess, sys, tempfile, threading, time, types, warnings
 
 from datetime import date as datedate, datetime, timedelta
 from tempfile import TemporaryFile
 from traceback import format_exc, print_exc
-from inspect import getargspec
+from inspect import getfullargspec as getargspec
 from unicodedata import normalize
 
 
@@ -84,7 +84,7 @@ if py3k:
     from urllib.parse import urlencode, quote as urlquote, unquote as urlunquote
     urlunquote = functools.partial(urlunquote, encoding='latin1')
     from http.cookies import SimpleCookie
-    from collections import MutableMapping as DictMixin
+    from collections.abc import MutableMapping as DictMixin
     import pickle
     from io import BytesIO
     from configparser import ConfigParser
@@ -111,7 +111,7 @@ else: # 2.x
         def next(it): return it.next()
         bytes = str
     else: # 2.6, 2.7
-        from collections import MutableMapping as DictMixin
+        from collections.abc import MutableMapping as DictMixin
     unicode = unicode
     json_loads = json_lds
     eval(compile('def _raise(*a): raise a[0], a[1], a[2]', '<py3fix>', 'exec'))
@@ -1219,24 +1219,25 @@ class BaseRequest(object):
                 post[key] = value
             return post
 
-        safe_env = {'QUERY_STRING':''} # Build a safe environment for cgi
-        for key in ('REQUEST_METHOD', 'CONTENT_TYPE', 'CONTENT_LENGTH'):
-            if key in self.environ: safe_env[key] = self.environ[key]
-        args = dict(fp=self.body, environ=safe_env, keep_blank_values=True)
-        if py31:
-            args['fp'] = NCTextIOWrapper(args['fp'], encoding='utf8',
-                                         newline='\n')
-        elif py3k:
-            args['encoding'] = 'utf8'
-        data = cgi.FieldStorage(**args)
-        self['_cgi.FieldStorage'] = data #http://bugs.python.org/issue18394#msg207958
-        data = data.list or []
-        for item in data:
-            if item.filename:
-                post[item.name] = FileUpload(item.file, item.name,
-                                             item.filename, item.headers)
-            else:
-                post[item.name] = item.value
+        import email, email.policy
+        content_type = self.environ.get('CONTENT_TYPE', '')
+        content_length = int(self.environ.get('CONTENT_LENGTH') or 0)
+        body = self.body.read(content_length)
+        msg = email.message_from_bytes(
+            b'Content-Type: ' + content_type.encode() + b'\r\n\r\n' + body,
+            policy=email.policy.compat32)
+        for part in msg.get_payload():
+            if not isinstance(part, email.message.Message):
+                continue
+            disposition = part.get_param('name', header='content-disposition')
+            filename = part.get_param('filename', header='content-disposition')
+            payload = part.get_payload(decode=True)
+            if filename:
+                import io
+                post[disposition] = FileUpload(io.BytesIO(payload), disposition,
+                                               filename, part.items())
+            elif disposition:
+                post[disposition] = payload.decode('utf8') if payload else ''
         return post
 
     @property
@@ -1769,7 +1770,7 @@ class _ImportRedirect(object):
         """ Create a virtual package that redirects imports (see PEP 302). """
         self.name = name
         self.impmask = impmask
-        self.module = sys.modules.setdefault(name, imp.new_module(name))
+        self.module = sys.modules.setdefault(name, types.ModuleType(name))
         self.module.__dict__.update({'__file__': __file__, '__path__': [],
                                     '__all__': [], '__loader__': self})
         sys.meta_path.append(self)
@@ -3285,7 +3286,7 @@ class StplParser(object):
     _re_cache = {} #: Cache for compiled re patterns
     # This huge pile of voodoo magic splits python code into 8 different tokens.
     # 1: All kinds of python strings (trust me, it works)
-    _re_tok = '((?m)[urbURB]?(?:\'\'(?!\')|""(?!")|\'{6}|"{6}' \
+    _re_tok = '([urbURB]?(?:\'\'(?!\')|""(?!")|\'{6}|"{6}' \
                '|\'(?:[^\\\\\']|\\\\.)+?\'|"(?:[^\\\\"]|\\\\.)+?"' \
                '|\'{3}(?:[^\\\\]|\\\\.|\\n)+?\'{3}' \
                '|"{3}(?:[^\\\\]|\\\\.|\\n)+?"{3}))'
@@ -3302,7 +3303,7 @@ class StplParser(object):
     # 7: And finally, a single newline. The 8th token is 'everything else'
     _re_tok += '|(\\r?\\n)'
     # Match the start tokens of code areas in a template
-    _re_split = '(?m)^[ \t]*(\\\\?)((%(line_start)s)|(%(block_start)s))'
+    _re_split = '^[ \t]*(\\\\?)((%(line_start)s)|(%(block_start)s))'
     # Match inline statements (may contain python strings)
     _re_inl = '%%(inline_start)s((?:%s|[^\'"\n]*?)+)%%(inline_end)s' % _re_inl
 
@@ -3327,7 +3328,7 @@ class StplParser(object):
             etokens = map(re.escape, self._tokens)
             pattern_vars = dict(zip(names.split(), etokens))
             patterns = (self._re_split, self._re_tok, self._re_inl)
-            patterns = [re.compile(p%pattern_vars) for p in patterns]
+            patterns = [re.compile(p%pattern_vars, re.MULTILINE) for p in patterns]
             self._re_cache[syntax] = patterns
         self.re_split, self.re_tok, self.re_inl = self._re_cache[syntax]
 

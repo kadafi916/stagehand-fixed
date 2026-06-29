@@ -9,17 +9,15 @@ log = logging.getLogger('stagehand.retrievers')
 
 plugins, broken_plugins = load_plugins('retrievers', ['http'])
 
-@asyncio.coroutine
-def start(manager):
+async def start(manager):
     """
     Called when the manager is starting.
     """
-    yield from invoke_plugins(plugins, 'start', manager)
+    await invoke_plugins(plugins, 'start', manager)
     for name, error in broken_plugins.items():
         log.warning('failed to load retriever plugin %s: %s', name, error)
 
-@asyncio.coroutine
-def retrieve(progress, result, outfile, episode, skip=[], loop=None):
+async def retrieve(progress, result, outfile, episode, skip=[], loop=None):
     """
     Given a SearchResult object, retrieve the file using retriever plugins that
     support the result type.
@@ -34,7 +32,7 @@ def retrieve(progress, result, outfile, episode, skip=[], loop=None):
         tried.add(name)
         retriever = plugins[name].Retriever(loop=loop)
         try:
-            yield from retriever.retrieve(progress, episode, result, outfile)
+            await retriever.retrieve(progress, episode, result, outfile)
         except RetrieverAbortedSoft as e:
             # Happens when the retriever itself aborts the download, e.g. because
             # the file failed to meet the resolution requirements.

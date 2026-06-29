@@ -85,8 +85,7 @@ class Provider(ProviderBase):
         )
 
 
-    @asyncio.coroutine
-    def _rawapi(self, path, token=None, method='GET', body=None):
+    async def _rawapi(self, path, token=None, method='GET', body=None):
         url = 'https://api.thetvdb.com' + path
         headers = {
             'Accept': 'application/json',
@@ -96,14 +95,13 @@ class Provider(ProviderBase):
             headers['Authorization'] = 'Bearer ' + token
         if body:
             headers['Content-Type'] = 'application/json'
-        status, data = yield from download(url, retry=4, method=method, headers=headers, data=body)
+        status, data = await download(url, retry=4, method=method, headers=headers, data=body)
         return status, json.loads(data.decode('utf8')) if data else None
 
 
-    @asyncio.coroutine
-    def _login(self):
+    async def _login(self):
         body = json.dumps({'apikey': self._apikey})
-        status, response = yield from self._rawapi('/login', method='POST', body=body)
+        status, response = await self._rawapi('/login', method='POST', body=body)
         if status == 200 and 'token' in response:
             return response['token']
         else:
@@ -111,18 +109,17 @@ class Provider(ProviderBase):
             raise ProviderError('thetvdb API login failed')
 
 
-    @asyncio.coroutine
-    def _api(self, path, method='GET', body=None):
+    async def _api(self, path, method='GET', body=None):
         """
         Invokes an API method, logging in or refreshing the token if necessary.
         """
         now = time.time()
         if not self._token or now - self._token_time > Provider.TOKEN_LIFETIME_SECONDS:
             # Acquire a new token
-            self._token = yield from self._login()
+            self._token = await self._login()
             self._token_time = now
 
-        status, response = yield from self._rawapi(path, self._token, method, body)
+        status, response = await self._rawapi(path, self._token, method, body)
         log.debug('API %s returned status %d', path, status)
         if status == 401:
             if self._token_time == now:
@@ -130,18 +127,17 @@ class Provider(ProviderBase):
             else:
                 # Token was refused before expiry.  Clear token and recurse to cause relogin.
                 self._token = None
-                status, response = yield from self._api(path,method, body)
+                status, response = await self._api(path, method, body)
         elif status != 200:
             log.debug('API %s returned status %d', path, status)
         return status, response
 
 
-    @asyncio.coroutine
-    def search(self, name):
+    async def search(self, name):
         results = []
         quoted = urllib.parse.quote(name.replace('-', ' ').replace('_', ' '))
         log.info('searching TheTVDB for %s', name)
-        status, response = yield from self._api('/search/series?name=' + quoted)
+        status, response = await self._api('/search/series?name=' + quoted)
         if status == 200:
             if 'data' not in response:
                 log.warning('data element missing from response')
@@ -151,8 +147,7 @@ class Provider(ProviderBase):
         return results
 
 
-    @asyncio.coroutine
-    def get_series(self, id):
+    async def get_series(self, id):
         log.debug('retrieving series data for %s', id)
         if not self.get_last_updated():
             # DB doesn't know about server time.  Set to current time so that
@@ -162,7 +157,7 @@ class Provider(ProviderBase):
 
         series = {'episodes': []}
         log.info('fetching series %s from TheTVDB', id)
-        status, response = yield from self._api('/series/' + id)
+        status, response = await self._api('/series/' + id)
         if status != 200:
             return series
         elif 'data' not in response:
@@ -193,7 +188,7 @@ class Provider(ProviderBase):
             # a higher rating?) or because we never had one.
             url = self.hostname + '/banners/' + data['banner']
             log.debug('refresh series banner %s', url)
-            status, banner_data = yield from download(url, retry=3)
+            status, banner_data = await download(url, retry=3)
             if status == 200:
                 series['banner_data'] = banner_data
             else:
@@ -225,7 +220,7 @@ class Provider(ProviderBase):
 
         # Iterate over all pages of episodes.
         for page in itertools.count(1):
-            status, response = yield from self._api('/series/{}/episodes?page={}'.format(id, page))
+            status, response = await self._api('/series/{}/episodes?page={}'.format(id, page))
             if status != 200:
                 break
             elif 'data' not in response:
@@ -251,8 +246,7 @@ class Provider(ProviderBase):
         return series
 
 
-    @asyncio.coroutine
-    def get_changed_series_ids(self):
+    async def get_changed_series_ids(self):
         servertime = self.get_last_updated()
         if not servertime:
             # No servertime stored, so there must not be any series in db.
@@ -268,7 +262,7 @@ class Provider(ProviderBase):
             return list(series)
 
         ids = []
-        status, response = yield from self._api('/updated/query?fromTime={}'.format(servertime))
+        status, response = await self._api('/updated/query?fromTime={}'.format(servertime))
         if status == 200:
             if 'data' not in response:
                 log.warning('data element missing from response')

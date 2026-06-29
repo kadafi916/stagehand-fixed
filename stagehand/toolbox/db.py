@@ -1030,7 +1030,7 @@ class Database:
         if split is None:
             # Default split regexp is to split words on
             # alphanumeric/digits/underscore boundaries.
-            split = re.compile(u"(\d+)|[_\W]", re.U)
+            split = re.compile(r"(\d+)|[_\W]", re.U)
         elif isinstance(split, str):
             split = re.compile(tostr(split), re.U)
 

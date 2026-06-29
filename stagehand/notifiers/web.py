@@ -1,4 +1,4 @@
-import coroutine
+import asyncio
 
 from .base import NotifierBase, NotifierError
 from .. import web
@@ -6,8 +6,7 @@ from .. import web
 __all__ = ['Notifier']
 
 class Notifier(NotifierBase):
-    @asyncio.coroutine
-    def _notify(self, episodes):
+    async def _notify(self, episodes):
         # TODO: don't spam individual notifications if # of episodes is more
         # than say 5.
         for ep in episodes:

@@ -262,8 +262,7 @@ class Plugin:
 
 
 
-@asyncio.coroutine
-def start(manager):
+async def start(manager):
     global plugin
     plugin = Plugin(manager)
     plugin.start()
