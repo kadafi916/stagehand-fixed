@@ -1,38 +1,24 @@
 # Stagehand
 
-**This software is somewhat half-baked. It only works (though it works well)
-if you have an [Easynews](https://easynews.com) account. Generic NNTP isn't
-supported yet (but help is welcome).**
+**Requires an [Easynews](https://easynews.com) account. Generic NNTP is not supported yet.**
 
+Stagehand is a TV series manager that automatically downloads new episodes and provides a web UI for managing your collection.
 
-## What it is
+---
 
-Stagehand is a manager for your favourite TV series. It automatically
-downloads new episodes of the TV shows in your library, and provides a
-convenient web interface for managing your collection.
+## Features
 
-Key features:
+- Dark single-page web UI — no page reloads, hash-based routing
+- Multiple metadata providers per series (TheTVDB and TVmaze)
+- Easynews HTTP global search (enabled by default)
+- Per-episode and per-season status management
+- Live log streaming in the browser
+- Full settings UI — no config file editing required for common options
+- Python 3.11+ (Docker image uses Python 3.13)
 
-* Modern dark single-page UI (Semantic UI, plain ES6 — no CoffeeScript required)
-* Support for multiple TV metadata providers (TheTVDB and TVmaze): choose the authoritative provider per series
-* Exclusive support for Easynews HTTP-based global search
-* Per-episode status management: mark episodes as Needed, Ignored, or delete and re-download
-* Runs on Python 3.11+ (Docker image uses Python 3.13)
+---
 
-## What it isn't
-
-The core is quite robust, but several features are missing:
-
-* NZB and NNTP support (for non-Easynews Usenet services): the most critical missing piece
-* BitTorrent
-* Web-based settings UI (credentials must be set in the config file for now)
-* Ability to import an existing TV library
-* ... and a bazillion FIXMEs and TODOs in the source
-
-
-## How to run it
-
-The included `Dockerfile` is the easiest way to get started.
+## Quick start
 
 ```bash
 docker build -t stagehand .
@@ -43,45 +29,78 @@ docker run -d -p 8088:8088 \
   stagehand
 ```
 
-Change `/path/to/tv` to the directory where you want episodes saved.
+Open **http://localhost:8088** in your browser.
 
-The web interface is at **http://localhost:8088**.
+---
 
+## Configuration
 
-## How to configure it
+On first run Stagehand creates `~/.config/stagehand/config` (mapped from the host path above). Most settings are now configurable through the **Settings** page in the UI. The config file is watched for changes and picked up without a restart.
 
-Settings are managed via a plain-text config file. On first run Stagehand
-creates it at `~/.config/stagehand/config` (inside the container this maps
-to the host path you mounted above).
+### Easynews credentials
 
-To enable Easynews search, append these lines:
+Enter your username and password in **Configure → Settings → Easynews**. Easynews is enabled automatically once credentials are saved.
+
+Alternatively, add them directly to the config file:
 
 ```
-searchers.enabled[+] = easynews
-searchers.easynews.username = your_easynews_username
-searchers.easynews.password = your_easynews_password
+searchers.easynews.username = your_username
+searchers.easynews.password = your_password
 ```
 
-No restart needed — Stagehand watches the config file and picks up changes
-automatically.
-
+---
 
 ## Using the UI
 
 | Page | How to get there |
 |------|-----------------|
 | TV library | Click **TV Shows** in the nav bar |
-| Add a series | Click **Add TV Show** or use the search box in the nav bar |
+| Add a series | Search box in the nav bar, or click **Add TV Show** |
 | Show detail & episodes | Click any banner in the library |
-| Mark an episode | On the show detail page, click the colored **●** next to any episode |
-| Downloads | Click **Downloads** in the nav bar |
+| Downloads & history | Click **Downloads** in the nav bar |
+| Settings & log | Click **Configure** in the nav bar |
 
 ### Episode status dots
 
+Each episode has a colored dot showing its status. Click a dot to open the action menu.
+
 | Color | Meaning |
 |-------|---------|
-| 🟢 Green | Downloaded |
-| 🩷 Pink | Needed (will be downloaded) |
-| ⚫ Gray | Ignored or not yet aired |
+| Green | Downloaded |
+| Pink | Needed — queued for download |
+| Gray | Ignored or not yet aired |
 
-Click any dot to open an action menu: **Mark as Needed**, **Mark as Ignored**, or **Delete File + Ignore**.
+Actions: **Mark as Needed**, **Mark as Ignored**, **Delete File + Ignore**
+
+### Season actions
+
+Click the **⋯** button on any season header to apply an action to the entire season at once.
+
+### Downloads page
+
+Active downloads show a progress bar with MB transferred and speed. The page updates automatically when the queue changes — no manual refresh needed.
+
+---
+
+## Settings UI
+
+All common settings are available under **Configure → Settings**:
+
+| Section | Options |
+|---------|---------|
+| General | TV directory, metadata language, log level |
+| Downloads | Max parallel downloads |
+| File Naming | Word separator, episode code style (`s01e02` / `1x02`), season directory format, episode filename format with live preview |
+| Web Access | Optional HTTP basic auth (username + password, explicit Save button) |
+| Easynews | Username and password (explicit Save button) |
+| Episode Check Schedule | Checkboxes for each hour of the day; quick-select All / None / Every 2h / Every 4h |
+| System | Trigger an immediate episode check |
+
+---
+
+## What's missing
+
+- NZB / generic NNTP support (non-Easynews Usenet)
+- BitTorrent
+- Import of an existing TV library
+- Various FIXMEs and TODOs in the source

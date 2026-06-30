@@ -29,7 +29,8 @@ class Searcher(SearcherBase):
 
     async def _search_global5(self, title, codes, size, date, res):
         if not modconfig.username or not modconfig.password:
-            raise ValueError('Configuration lacks username and/or password')
+            from .base import SearcherError
+            raise SearcherError('Easynews credentials not configured')
 
         if 0 and os.path.exists('result.rss'):
             print('Using cached result.rss')

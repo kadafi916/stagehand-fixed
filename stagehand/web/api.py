@@ -76,6 +76,9 @@ async def show_provider(job, id):
             raise web.HTTPError(404, 'Invalid provider.')
         else:
             series.cfg.provider = provider
+            from ..config import config
+            manager = web.request['stagehand.manager']
+            config.save(manager.paths.config)
 
 
 @web.post('/api/shows/<id>/refresh')
@@ -97,6 +100,10 @@ def show_settings(id):
     series.cfg.paused = True if settings['paused'] == 'true' else False
     series.cfg.flat = True if settings['flat'] == 'true' else False
     series.cfg.identifier = settings.identifier
+
+    from ..config import config
+    manager = web.request['stagehand.manager']
+    config.save(manager.paths.config)
 
     # TODO: if pausing a series that has queued episodes, remove them and
     # notify user.
@@ -208,6 +215,102 @@ async def show_episodes_status(job, id, epcode):
         asyncio.ensure_future(manager.check_new_episodes())
     return {'statuses': statuses}
 
+
+@web.get('/api/settings/general')
+def get_general_settings():
+    from ..config import config
+    enabled = [str(s) for s in config.searchers.enabled]
+    return {
+        'tvdir':              str(config.misc.tvdir),
+        'language':           str(config.misc.language),
+        'loglevel':           str(config.misc.loglevel),
+        'parallel':           int(config.retrievers.parallel),
+        'separator':          str(config.naming.separator),
+        'season_dir_format':  str(config.naming.season_dir_format),
+        'code_style':         str(config.naming.code_style),
+        'episode_format':     str(config.naming.episode_format),
+        'web_username':       str(config.web.username),
+        'web_password':       str(config.web.password),
+        'easynews_username':  str(config.searchers.easynews.username),
+        'easynews_password':  str(config.searchers.easynews.password),
+        'easynews_enabled':   'easynews' in enabled,
+    }
+
+@web.post('/api/settings/general')
+def set_general_settings():
+    import logging as _logging
+    from ..config import config
+    from .settings import rename_example
+    d = web.request.json or {}
+
+    def _set(attr, val, cast=str):
+        if val is not None:
+            parts = attr.split('.')
+            obj = config
+            for p in parts[:-1]:
+                obj = getattr(obj, p)
+            setattr(obj, parts[-1], cast(val))
+
+    _set('misc.tvdir',              d.get('tvdir'))
+    _set('misc.language',           d.get('language'))
+    _set('misc.loglevel',           d.get('loglevel'))
+    _set('retrievers.parallel',     d.get('parallel'), int)
+    _set('naming.separator',        d.get('separator'))
+    _set('naming.season_dir_format',d.get('season_dir_format'))
+    _set('naming.code_style',       d.get('code_style'))
+    _set('naming.episode_format',   d.get('episode_format'))
+    _set('web.username',            d.get('web_username'))
+    _set('web.password',            d.get('web_password'))
+
+    # Easynews credentials
+    en_user = d.get('easynews_username')
+    en_pass = d.get('easynews_password')
+    if en_user is not None or en_pass is not None:
+        if en_user is not None:
+            config.searchers.easynews.username = str(en_user)
+        if en_pass is not None:
+            config.searchers.easynews.password = str(en_pass)
+        # Auto-enable easynews searcher if credentials provided
+        if en_user or en_pass:
+            enabled = [str(s) for s in config.searchers.enabled]
+            if 'easynews' not in enabled:
+                config.searchers.enabled.append('easynews')
+
+    # Apply loglevel immediately without restart
+    if d.get('loglevel'):
+        lvl = str(d['loglevel']).lower()
+        level_map = {'warn': _logging.WARNING, 'info': _logging.INFO,
+                     'debug': _logging.DEBUG, 'debug2': 5}
+        new_level = level_map.get(lvl, _logging.INFO)
+        _logging.getLogger('stagehand').setLevel(new_level)
+
+    config.save()
+
+    example = rename_example(
+        str(config.misc.tvdir), str(config.naming.separator),
+        str(config.naming.season_dir_format), str(config.naming.code_style),
+        str(config.naming.episode_format)
+    )
+    return {'ok': True, 'example': example}
+
+@web.get('/api/settings/check-hours')
+def get_check_hours():
+    from ..config import config
+    hours = sorted(int(h.strip()) for h in str(config.searchers.hours).split(',') if h.strip().isdigit())
+    return {'hours': hours}
+
+@web.post('/api/settings/check-hours')
+def set_check_hours():
+    from ..config import config
+    from ..toolbox.config import get_default
+    hours = web.request.json.get('hours', [])
+    hours = sorted(set(int(h) for h in hours if 0 <= int(h) <= 23))
+    if not hours:
+        default = get_default(config.searchers.hours)
+        hours = sorted(int(h.strip()) for h in default.split(',') if h.strip().isdigit())
+    config.searchers.hours = ', '.join(str(h) for h in hours)
+    config.save()
+    return {'hours': hours}
 
 @web.get('/api/restart')
 def restart():

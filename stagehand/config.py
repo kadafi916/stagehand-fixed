@@ -190,7 +190,7 @@ config = Config(schema=[
     it, causing communication to use the OS default route.
     ''', default=''),
 
-    List(name='enabled', desc='List of enabled searcher plugins and their order of preference.', schema=Var(default='')),
+    List(name='enabled', desc='List of enabled searcher plugins and their order of preference.', schema=Var(default=''), defaults=['easynews']),
 
     ]
   ),

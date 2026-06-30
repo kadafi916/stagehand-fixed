@@ -177,6 +177,7 @@ class Manager:
             if not self.tvdb.get_config_for_series(id, series):
                 identifier = 'date' if series.has_genre('talk show', 'news') else 'epcode'
                 config.series.append(config.series(id=id, path=fixsep(series.name), identifier=identifier))
+                config.save(self.paths.config)
         return series
 
 
@@ -190,6 +191,7 @@ class Manager:
             config.series.remove(series.cfg)
         except ValueError:
             pass
+        config.save(self.paths.config)
         self.tvdb.delete_series(series)
 
 

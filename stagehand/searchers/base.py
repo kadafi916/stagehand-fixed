@@ -3,6 +3,7 @@ import re
 import asyncio
 import functools
 import logging
+import unicodedata
 
 from ..config import config
 from ..utils import remove_stop_words
@@ -216,6 +217,8 @@ class SearcherBase:
         if parens:
             # Remove anything in parens from the title (e.g. "The Office (US)")
             title = re.sub(r'\s*\([^)]*\)', '', title)
+        # Strip diacritics so accented titles (e.g. "Fiancé") match posted filenames
+        title = unicodedata.normalize('NFKD', title).encode('ascii', 'ignore').decode('ascii')
         # Substitute certain punctuation with spaces
         title = re.sub(r'[&()\[\]*+,-./:;<=>?@\\^_{|}"]', ' ', title)
         # And outright remove others

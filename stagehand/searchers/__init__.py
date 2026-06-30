@@ -52,7 +52,7 @@ async def search(series, episodes, skip=[], loop=None):
         try:
             results = await searcher.search(series, episodes, earliest, min_size_bytes, ideal_size_bytes, series.cfg.quality)
         except SearcherError as e:
-            log.error('%s failed: %s', name, e.args[0])
+            log.warning('%s failed: %s', name, e.args[0])
         except Exception:
             log.exception('%s failed with unhandled error', name)
         else:

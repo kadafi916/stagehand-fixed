@@ -68,11 +68,25 @@
         .episode-table tr:hover { background: rgba(255,255,255,0.05); cursor: pointer; }
         .ep-dot { cursor: pointer; }
         .ep-dot:hover { opacity: 0.75; }
-        #ep-action-menu { position: fixed; background: #1e1e1e; border: 1px solid #444; border-radius: 4px;
-            box-shadow: 0 4px 14px rgba(0,0,0,0.7); z-index: 9999; min-width: 170px; display: none; }
-        #ep-action-menu .ep-menu-item { padding: 9px 16px; cursor: pointer; font-size: 13px; border-bottom: 1px solid #333; }
-        #ep-action-menu .ep-menu-item:last-child { border-bottom: none; }
-        #ep-action-menu .ep-menu-item:hover { background: #2d2d2d; }
+        #ep-action-menu, #season-action-menu { position: fixed; background: #1e1e1e; border: 1px solid #444; border-radius: 4px;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.7); z-index: 9999; min-width: 190px; display: none; }
+        #ep-action-menu .ep-menu-item, #season-action-menu .season-menu-item { padding: 9px 16px; cursor: pointer; font-size: 13px; border-bottom: 1px solid #333; }
+        #ep-action-menu .ep-menu-item:last-child, #season-action-menu .season-menu-item:last-child { border-bottom: none; }
+        #ep-action-menu .ep-menu-item:hover, #season-action-menu .season-menu-item:hover { background: #2d2d2d; }
+        .season-menu-btn { font-size: 16px; color: #888; padding: 0 4px 0 12px; line-height: 1; cursor: pointer; flex-shrink: 0; }
+        .season-menu-btn:hover { color: #fff; }
+        #nav-configure.nav-current { background: rgba(255,255,255,0.08) !important; }
+        #nav-configure > .menu { display: none; position: absolute; top: 100%; left: 0;
+            background: #2d2d2d; border: 1px solid #555; border-radius: 4px;
+            min-width: 140px; z-index: 9999; box-shadow: 0 4px 14px rgba(0,0,0,0.7); }
+        #nav-configure > .menu a.item { color: #ddd !important; display: block; padding: 10px 16px; }
+        #nav-configure > .menu a.item:hover { background: rgba(255,255,255,0.1) !important; color: #fff !important; }
+        #nav-search-input { color: #fff !important; }
+        #nav-search-input::placeholder { color: rgba(255,255,255,0.5) !important; }
+        .ui.modal { background: #1e1e1e !important; color: #ddd !important; }
+        .ui.modal > .header { background: #2a2a2a !important; color: #fff !important; border-bottom: 1px solid #444 !important; }
+        .ui.modal > .content { background: #1e1e1e !important; color: #ddd !important; }
+        .ui.modal > .actions { background: #2a2a2a !important; border-top: 1px solid #444 !important; }
         .season-header {
             background: rgba(255,255,255,0.08); padding: 8px 14px;
             font-weight: bold; cursor: pointer; user-select: none;
@@ -83,10 +97,15 @@
         .season-body { overflow: hidden; }
 
         /* Settings form */
+        .settings-card { background:#2d2d2d; border-radius:6px; padding:1.5rem; margin-bottom:1rem; }
+        .settings-card h3 { margin-top:0; margin-bottom:1rem; font-size:15px; color:#fff; }
         .settings-field { margin-bottom: 1rem; }
         .settings-field label { display: block; font-size: 12px; color: #aaa; margin-bottom: 4px; }
-        .settings-field input[type=text], .settings-field select {
-            background: #2d2d2d; border: 1px solid #444; color: #eee;
+        .settings-field input[type=text],
+        .settings-field input[type=password],
+        .settings-field input[type=number],
+        .settings-field select {
+            background: #111; border: 1px solid #444; color: #eee;
             border-radius: 4px; padding: 7px 10px; width: 100%; box-sizing: border-box;
         }
         .settings-radio-group { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -355,27 +374,143 @@
 
 <!-- ============================================================ VIEW: SETTINGS -->
 <div id="view-settings" class="view">
-    <div class="view-inner" style="max-width:600px">
+    <div class="view-inner" style="max-width:660px">
         <h2 style="margin-bottom:1.5rem">Settings</h2>
-        <div style="background:#2d2d2d; border-radius:6px; padding:1.5rem; margin-bottom:1rem">
-            <h3 style="margin-top:0">Searcher Configuration</h3>
-            <p style="color:#888; font-size:13px">
-                Settings are currently managed via the config file at
-                <code style="background:#111; padding:2px 5px; border-radius:3px">~/.config/stagehand/config</code>.
-            </p>
-            <p style="color:#888; font-size:13px">To enable Easynews search, append to the config file:</p>
-            <pre style="background:#111; padding:1rem; border-radius:4px; color:#ccc; font-size:12px; overflow-x:auto">searchers.enabled[+] = easynews
-searchers.easynews.username = your_username
-searchers.easynews.password = your_password</pre>
+
+        <!-- General -->
+        <div class="settings-card">
+            <h3>General</h3>
+            <div class="settings-field">
+                <label>TV Directory</label>
+                <input type="text" id="cfg-tvdir" placeholder="~/tv">
+            </div>
+            <div style="display:flex; gap:1rem; flex-wrap:wrap">
+                <div class="settings-field" style="flex:1; min-width:140px">
+                    <label>Metadata Language</label>
+                    <input type="text" id="cfg-language" placeholder="en" style="max-width:80px">
+                </div>
+                <div class="settings-field" style="flex:2; min-width:200px">
+                    <label>Log Level</label>
+                    <div class="settings-radio-group" id="cfg-loglevel-group"></div>
+                </div>
+            </div>
         </div>
-        <div style="background:#2d2d2d; border-radius:6px; padding:1.5rem">
-            <h3 style="margin-top:0">System</h3>
+
+        <!-- Downloads -->
+        <div class="settings-card">
+            <h3>Downloads</h3>
+            <div class="settings-field">
+                <label>Parallel Downloads</label>
+                <input type="number" id="cfg-parallel" min="1" max="10" style="width:70px">
+            </div>
+        </div>
+
+        <!-- File Naming -->
+        <div class="settings-card">
+            <h3>File Naming</h3>
+            <div style="display:flex; gap:1rem; flex-wrap:wrap">
+                <div class="settings-field" style="flex:1; min-width:180px">
+                    <label>Word Separator</label>
+                    <div class="settings-radio-group" id="cfg-separator-group">
+                        <input type="radio" name="cfg-sep" id="cfg-sep-under" value="_">
+                        <label for="cfg-sep-under">underscore _</label>
+                        <input type="radio" name="cfg-sep" id="cfg-sep-space" value=" ">
+                        <label for="cfg-sep-space">space</label>
+                    </div>
+                </div>
+                <div class="settings-field" style="flex:1; min-width:180px">
+                    <label>Episode Code Style</label>
+                    <div class="settings-radio-group" id="cfg-codestyle-group">
+                        <input type="radio" name="cfg-code" id="cfg-code-s" value="s{season:02}e{episode:02}">
+                        <label for="cfg-code-s">s01e02</label>
+                        <input type="radio" name="cfg-code" id="cfg-code-x" value="{season}x{episode:02}">
+                        <label for="cfg-code-x">1x02</label>
+                    </div>
+                </div>
+            </div>
+            <div class="settings-field">
+                <label>Season Directory Format</label>
+                <input type="text" id="cfg-season-dir" style="max-width:200px">
+            </div>
+            <div class="settings-field">
+                <label>Episode Filename Format</label>
+                <input type="text" id="cfg-ep-format">
+                <div style="font-size:11px; color:#666; margin-top:4px">
+                    Variables: <code>{show}</code> <code>{code}</code> <code>{title}</code>
+                </div>
+            </div>
+            <div style="font-size:12px; color:#aaa; margin-top:0.5rem">
+                Preview: <code id="cfg-naming-preview" style="color:#ccc"></code>
+            </div>
+        </div>
+
+        <!-- Web Access -->
+        <div class="settings-card">
+            <h3>Web Access</h3>
+            <p style="color:#888; font-size:13px; margin-top:0">Optional HTTP basic auth. Leave blank to disable.</p>
+            <div style="display:flex; gap:1rem; flex-wrap:wrap">
+                <div class="settings-field" style="flex:1; min-width:160px">
+                    <label>Username</label>
+                    <input type="text" id="cfg-web-user" autocomplete="off">
+                </div>
+                <div class="settings-field" style="flex:1; min-width:160px">
+                    <label>Password</label>
+                    <input type="password" id="cfg-web-pass" autocomplete="new-password">
+                </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:0.75rem">
+                <button class="ui button" id="btn-save-web-auth">Save</button>
+                <button class="ui button" id="btn-clear-web-auth">Clear</button>
+                <span id="web-auth-status" style="font-size:12px; color:#4caf50"></span>
+            </div>
+        </div>
+
+        <!-- Easynews -->
+        <div class="settings-card">
+            <h3>Easynews</h3>
+            <div style="display:flex; gap:1rem; flex-wrap:wrap">
+                <div class="settings-field" style="flex:1; min-width:160px">
+                    <label>Username</label>
+                    <input type="text" id="cfg-en-user" autocomplete="off">
+                </div>
+                <div class="settings-field" style="flex:1; min-width:160px">
+                    <label>Password</label>
+                    <input type="password" id="cfg-en-pass" autocomplete="new-password">
+                </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:0.75rem; margin-top:0.25rem">
+                <button class="ui button" id="btn-save-easynews">Save</button>
+                <button class="ui button" id="btn-clear-easynews">Clear</button>
+                <span id="easynews-status" style="font-size:12px; color:#4caf50"></span>
+            </div>
+        </div>
+
+        <!-- Episode Check Schedule -->
+        <div class="settings-card">
+            <h3>Episode Check Schedule</h3>
+            <p style="color:#888; font-size:13px; margin-bottom:1rem">
+                Hours when Stagehand searches for new episodes (minutes are randomized).
+            </p>
+            <div id="hours-checkboxes" style="display:grid; grid-template-columns:repeat(6,1fr); gap:6px; margin-bottom:1rem"></div>
+            <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap">
+                <button class="ui button mini" id="hours-all">All</button>
+                <button class="ui button mini" id="hours-none">None</button>
+                <button class="ui button mini" id="hours-every2">Every 2h</button>
+                <button class="ui button mini" id="hours-every4">Every 4h</button>
+                <span id="hours-save-status" style="font-size:12px; color:#4caf50; margin-left:0.5rem"></span>
+            </div>
+        </div>
+
+        <!-- System -->
+        <div class="settings-card">
+            <h3>System</h3>
             <div style="display:flex; gap:0.75rem; flex-wrap:wrap">
                 <button class="ui button" id="btn-check-all">
-                    <i class="search icon"></i> Check All Shows for New Episodes
+                    <i class="search icon"></i> Check All Shows Now
                 </button>
             </div>
         </div>
+
     </div>
 </div>
 
@@ -407,6 +542,13 @@ searchers.easynews.password = your_password</pre>
     <div class="ep-menu-item" data-action="need" style="color:#e03997">&#9679; Mark as Needed</div>
     <div class="ep-menu-item" data-action="ignore" style="color:#767676">&#9679; Mark as Ignored</div>
     <div class="ep-menu-item" data-action="delete" style="color:#db2828">&#10007; Delete File + Ignore</div>
+</div>
+
+<!-- ============================================================ SEASON ACTION MENU -->
+<div id="season-action-menu">
+    <div class="season-menu-item" data-action="need" style="color:#e03997">&#9679; Mark Season as Needed</div>
+    <div class="season-menu-item" data-action="ignore" style="color:#767676">&#9679; Mark Season as Ignored</div>
+    <div class="season-menu-item" data-action="delete" style="color:#db2828">&#10007; Delete Season + Ignore</div>
 </div>
 
 <!-- ============================================================ MODAL: CONFIRM DELETE -->
@@ -536,7 +678,7 @@ function notify(title, text, type) {
     var $close = $('<span>').addClass('notif-close').text('×');
     $n.append($close);
     if (title) $n.append($('<div>').addClass('notif-title').text(title));
-    if (text) $n.append($('<div>').text(text));
+    if (text) $n.append($('<div>').html(text));
     $close.on('click', function() { $n.fadeOut(200, function() { $n.remove(); }); });
     $area.append($n);
     setTimeout(function() { $n.fadeOut(400, function() { $n.remove(); }); }, 8000);
@@ -587,14 +729,19 @@ function showView(view) {
     $('a.item[data-view]').removeClass('active');
     $('a.item[data-view="' + view + '"]').addClass('active');
     if (view === 'settings' || view === 'log') {
-        $('#nav-configure').addClass('active');
+        $('#nav-configure').addClass('nav-current');
     } else {
-        $('#nav-configure').removeClass('active');
+        $('#nav-configure').removeClass('nav-current');
     }
     if (view === 'log') {
         startLogStream();
     } else {
         stopLogStream();
+    }
+    if (view === 'downloads') {
+        startDlPoll();
+    } else {
+        stopDlPoll();
     }
 }
 
@@ -889,8 +1036,36 @@ function initEpActionMenu() {
         }
     });
     $(document).on('click.epmenu', function(e) {
-        if (!$(e.target).closest('#ep-action-menu').length) $epMenu.hide();
+        if (!$(e.target).closest('#ep-action-menu, #season-action-menu').length) {
+            $epMenu.hide();
+            $('#season-action-menu').hide();
+        }
     });
+}
+
+var $seasonMenu = null;
+var _seasonMenuShowId = null;
+var _seasonMenuCodes = null;
+
+function initSeasonActionMenu() {
+    $seasonMenu = $('#season-action-menu');
+    $seasonMenu.find('.season-menu-item').on('click', function() {
+        var action = $(this).attr('data-action');
+        $seasonMenu.hide();
+        if (_seasonMenuShowId && _seasonMenuCodes) {
+            setEpisodeStatus(_seasonMenuShowId, _seasonMenuCodes.join(','), action);
+        }
+    });
+}
+
+function showSeasonMenu(showId, codes, $btn) {
+    _seasonMenuShowId = showId;
+    _seasonMenuCodes = codes;
+    var off = $btn[0].getBoundingClientRect();
+    var menuW = 200, winW = $(window).width();
+    var left = Math.min(off.right - menuW, winW - menuW - 10);
+    left = Math.max(left, 10);
+    $seasonMenu.css({ top: off.bottom + 4, left: left }).show();
 }
 
 function showEpMenu(showId, code, $dot) {
@@ -904,6 +1079,7 @@ function showEpMenu(showId, code, $dot) {
 }
 
 function setEpisodeStatus(showId, code, action) {
+    var isBulk = code.indexOf(',') !== -1;
     stagehand.api('/api/shows/' + encodeURIComponent(showId) + '/episodes/' + encodeURIComponent(code) + '/status?value=' + action, {}, 'POST')
         .done(function(r) {
             var statuses = r.statuses || {};
@@ -912,6 +1088,11 @@ function setEpisodeStatus(showId, code, action) {
                 $('.ep-dot[data-ep-code="' + epCode + '"]')
                     .attr('class', 'ep-dot status-' + icon)
                     .attr('title', title + ' — click to change');
+            }
+            if (isBulk) {
+                var count = Object.keys(statuses).length;
+                var label = action === 'need' ? 'Marked as Needed' : action === 'ignore' ? 'Marked as Ignored' : 'Deleted + Ignored';
+                notify(label, count + ' episode' + (count !== 1 ? 's' : '') + ' updated.', 'info');
             }
         })
         .fail(function(err) { notify('Status Change Failed', err.message, 'error'); });
@@ -925,13 +1106,19 @@ function renderSeasons(seasons, showId) {
         var season = seasons[i];
         var label = season.number === 0 ? 'Specials' : 'Season ' + season.number;
         var haveCount = 0;
+        var allCodes = [];
         for (var x = 0; x < season.episodes.length; x++) {
             if (season.episodes[x].status === 'have') haveCount++;
+            allCodes.push(season.episodes[x].code);
         }
         var $hdr = $('<div>').addClass('season-header');
         $hdr.append($('<span>').html(label + ' <span style="color:#888;font-weight:normal;font-size:13px">(' + haveCount + '/' + season.episodes.length + ' downloaded)</span>'));
+        var $menuBtn = $('<span>').addClass('season-menu-btn').attr('title', 'Season actions').html('&#8943;');
+        (function(codes, $b) {
+            $menuBtn.on('click', function(e) { e.stopPropagation(); showSeasonMenu(showId, codes, $b); });
+        })(allCodes.slice(), $menuBtn);
         var $chevron = $('<i>').addClass('chevron down icon season-icon');
-        $hdr.append($chevron);
+        $hdr.append($menuBtn).append($chevron);
 
         var $body = $('<div>').addClass('season-body');
         var $table = $('<table>').addClass('episode-table');
@@ -1051,19 +1238,56 @@ function renderDownloads(data) {
 }
 
 // ---------------------------------------------------------------- Download progress update
+var _dlQueueKey = '';
+var _dlPollTimer = null;
+
+function startDlPoll() {
+    if (_dlPollTimer) return;
+    _dlPollTimer = setInterval(function() {
+        if ($('#view-downloads').hasClass('active')) silentReloadDownloads();
+    }, 5000);
+}
+function stopDlPoll() {
+    if (_dlPollTimer) { clearInterval(_dlPollTimer); _dlPollTimer = null; }
+}
+
+function silentReloadDownloads() {
+    var weeks = $('#dl-weeks-select').val() || '1';
+    var status = $('#dl-status-select').val() || 'have';
+    $.get(ROOT + '/api/downloads', { weeks: weeks, status: status }, function(data) {
+        renderDownloads(data);
+    });
+}
+
 function onDlProgress(data) {
     var queue = data.queue || [];
-    if (!queue.length) { $('#nav-progress').hide(); return; }
-    var first = queue[0], prog = first[2];
-    if (prog) {
-        $('#nav-progress').show();
-        try { $('#nav-progress-bar').progress({ percent: prog[0] }); } catch(e) {}
+
+    // Update nav progress bar
+    if (!queue.length) {
+        $('#nav-progress').hide();
+    } else {
+        var first = queue[0], prog = first[2];
+        if (prog) {
+            $('#nav-progress').show();
+            try { $('#nav-progress-bar').progress({ percent: prog[0] }); } catch(e) {}
+        }
     }
+
+    // Detect queue composition changes (items added, finished, or reordered)
+    var newKey = queue.map(function(i) { return i[0] + ':' + i[1]; }).join(',');
+    if (newKey !== _dlQueueKey) {
+        _dlQueueKey = newKey;
+        if ($('#view-downloads').hasClass('active')) silentReloadDownloads();
+        return;
+    }
+
+    // Same items — update progress bars in-place
     queue.forEach(function(item) {
         var showid = item[0], code = item[1], p = item[2];
         if (p) {
             var barId = '#dlprog-' + showid.replace(/[^a-zA-Z0-9]/g,'_') + '_' + code;
             $(barId).find('.fill').css('width', p[0] + '%');
+            $(barId).next().text(p[1] + '/' + p[2] + ' MB @ ' + p[3] + ' KB/s');
         }
     });
 }
@@ -1140,8 +1364,13 @@ $(document).ready(function() {
     });
     $('#nav-logo, #menu-label-logo').on('click', function() { navigate('/tv'); });
 
-    // Configure dropdown init
-    $('#nav-configure').dropdown({ on: 'click', duration: 0 });
+    // Configure dropdown — manual impl to avoid Semantic UI .active class conflict
+    var $cfgMenu = $('#nav-configure .menu');
+    $('#nav-configure').on('click', function(e) {
+        e.stopPropagation();
+        $cfgMenu.toggle();
+    });
+    $(document).on('click.cfgmenu', function() { $cfgMenu.hide(); });
 
     // Filter buttons
     $('.filter-btn').on('click', function() { setFilter($(this).attr('data-filter')); });
@@ -1150,6 +1379,172 @@ $(document).ready(function() {
     $('#btn-add-show').on('click', function() { navigate('/tv/add'); });
     $('#btn-back-library').on('click', function() { navigate('/tv'); });
     $('#btn-back-from-show').on('click', function() { navigate('/tv'); });
+
+    // General settings
+    (function() {
+        var saveTimer = null;
+        var LOGLEVEL_OPTS = ['warn','info','debug','debug2'];
+        var LOGLEVEL_LABELS = {'warn':'Warnings only','info':'Info','debug':'Debug','debug2':'Debug2'};
+
+        function buildRadioGroup($container, name, opts, labels, val) {
+            $container.empty();
+            opts.forEach(function(o) {
+                var $inp = $('<input>').attr({ type:'radio', name:name, id:name+'-'+o, value:o });
+                if (o === val) $inp.prop('checked', true);
+                var $lbl = $('<label>').attr('for', name+'-'+o).text(labels[o] || o);
+                $container.append($inp).append($lbl);
+            });
+        }
+
+        function loadGeneralSettings() {
+            $.get(ROOT + '/api/settings/general', function(d) {
+                $('#cfg-tvdir').val(d.tvdir || '');
+                $('#cfg-language').val(d.language || '');
+                $('#cfg-parallel').val(d.parallel || 1);
+                $('#cfg-season-dir').val(d.season_dir_format || '');
+                $('#cfg-ep-format').val(d.episode_format || '');
+                $('#cfg-web-user').val(d.web_username || '');
+                $('#cfg-web-pass').val(d.web_password || '');
+                $('#cfg-en-user').val(d.easynews_username || '');
+                $('#cfg-en-pass').val(d.easynews_password || '');
+                buildRadioGroup($('#cfg-loglevel-group'), 'cfg-loglevel', LOGLEVEL_OPTS, LOGLEVEL_LABELS, d.loglevel || 'info');
+                $('input[name="cfg-sep"][value="' + (d.separator || '_') + '"]').prop('checked', true);
+                var codeVal = d.code_style || '';
+                var $codeMatch = $('input[name="cfg-code"][value="' + codeVal + '"]');
+                if ($codeMatch.length) { $codeMatch.prop('checked', true); }
+                else { $('input[name="cfg-code"]').prop('checked', false); }
+                updateNamingPreview(d);
+                $('#cfg-loglevel-group, input[name="cfg-sep"], input[name="cfg-code"]').on('change', scheduleSave);
+            });
+        }
+
+        function updateNamingPreview(d) {
+            if (d && d.example) $('#cfg-naming-preview').text(d.example);
+            else if (d && d.error) $('#cfg-naming-preview').text('Error: ' + d.error);
+        }
+
+        function getPayload() {
+            return {
+                tvdir:              $('#cfg-tvdir').val(),
+                language:           $('#cfg-language').val(),
+                loglevel:           $('input[name="cfg-loglevel"]:checked').val(),
+                parallel:           parseInt($('#cfg-parallel').val(), 10) || 1,
+                separator:          $('input[name="cfg-sep"]:checked').val() || '_',
+                season_dir_format:  $('#cfg-season-dir').val(),
+                code_style:         $('input[name="cfg-code"]:checked').val() || $('#cfg-ep-format').val(),
+                episode_format:     $('#cfg-ep-format').val(),
+            };
+        }
+
+        function scheduleSave() {
+            clearTimeout(saveTimer);
+            saveTimer = setTimeout(saveGeneralSettings, 800);
+        }
+
+        function saveGeneralSettings() {
+            $.ajax({ url: ROOT + '/api/settings/general', method: 'POST',
+                contentType: 'application/json', data: JSON.stringify(getPayload()) })
+                .done(function(r) {
+                    updateNamingPreview(r.example);
+                    notify('Settings', 'Saved.', 'info');
+                })
+                .fail(function() { notify('Settings', 'Save failed.', 'error'); });
+        }
+
+        $('#cfg-tvdir, #cfg-language, #cfg-parallel, #cfg-season-dir, #cfg-ep-format')
+            .on('input change', scheduleSave);
+
+        function credSave(userSel, passSel, statusSel, extra) {
+            var user = $(userSel).val(), pass = $(passSel).val();
+            var payload = $.extend({ web_username: '', web_password: '', easynews_username: '', easynews_password: '' }, extra(user, pass));
+            $.ajax({ url: ROOT + '/api/settings/general', method: 'POST',
+                contentType: 'application/json', data: JSON.stringify(payload) })
+                .done(function() {
+                    $(statusSel).text('Saved').show();
+                    setTimeout(function() { $(statusSel).fadeOut(400); }, 2000);
+                })
+                .fail(function() { $(statusSel).css('color','#db2828').text('Save failed').show(); });
+        }
+
+        $('#btn-save-web-auth').on('click', function() {
+            credSave('#cfg-web-user', '#cfg-web-pass', '#web-auth-status', function(u, p) {
+                return { web_username: u, web_password: p };
+            });
+        });
+        $('#btn-clear-web-auth').on('click', function() {
+            $('#cfg-web-user, #cfg-web-pass').val('');
+            credSave('#cfg-web-user', '#cfg-web-pass', '#web-auth-status', function() {
+                return { web_username: '', web_password: '' };
+            });
+        });
+        $('#btn-save-easynews').on('click', function() {
+            credSave('#cfg-en-user', '#cfg-en-pass', '#easynews-status', function(u, p) {
+                return { easynews_username: u, easynews_password: p };
+            });
+        });
+        $('#btn-clear-easynews').on('click', function() {
+            $('#cfg-en-user, #cfg-en-pass').val('');
+            credSave('#cfg-en-user', '#cfg-en-pass', '#easynews-status', function() {
+                return { easynews_username: '', easynews_password: '' };
+            });
+        });
+
+        loadGeneralSettings();
+    })();
+
+    // Check hours checkboxes
+    (function() {
+        var $box = $('#hours-checkboxes');
+        var $status = $('#hours-save-status');
+        var saveTimer = null;
+
+        function buildCheckboxes(checked) {
+            $box.empty();
+            for (var h = 0; h < 24; h++) {
+                var label = (h % 12 || 12) + (h < 12 ? 'am' : 'pm');
+                var $cb = $('<input>').attr({ type: 'checkbox', id: 'hcb' + h, value: h });
+                if (checked.indexOf(h) !== -1) $cb.prop('checked', true);
+                var $lbl = $('<label>').attr('for', 'hcb' + h).css({
+                    display: 'flex', alignItems: 'center', gap: '4px',
+                    fontSize: '13px', cursor: 'pointer', color: '#ccc'
+                }).append($cb).append(document.createTextNode(label));
+                $box.append($lbl);
+            }
+            $box.find('input').on('change', scheduleSave);
+        }
+
+        function getChecked() {
+            return $box.find('input:checked').map(function() { return +this.value; }).get();
+        }
+
+        function scheduleSave() {
+            clearTimeout(saveTimer);
+            saveTimer = setTimeout(saveHours, 600);
+        }
+
+        function saveHours() {
+            $.ajax({ url: ROOT + '/api/settings/check-hours', method: 'POST',
+                contentType: 'application/json', data: JSON.stringify({ hours: getChecked() }) })
+                .done(function() {
+                    $status.text('Saved').show();
+                    setTimeout(function() { $status.fadeOut(400); }, 2000);
+                })
+                .fail(function() { $status.css('color', '#db2828').text('Save failed').show(); });
+        }
+
+        $.get(ROOT + '/api/settings/check-hours', function(d) { buildCheckboxes(d.hours || []); });
+
+        $('#hours-all').on('click', function() { $box.find('input').prop('checked', true); scheduleSave(); });
+        $('#hours-none').on('click', function() { $box.find('input').prop('checked', false); scheduleSave(); });
+        $('#hours-every2').on('click', function() {
+            $box.find('input').each(function() { $(this).prop('checked', this.value % 2 === 0); });
+            scheduleSave();
+        });
+        $('#hours-every4').on('click', function() {
+            $box.find('input').each(function() { $(this).prop('checked', this.value % 4 === 0); });
+            scheduleSave();
+        });
+    })();
 
     // Downloads controls
     $('#dl-status-select, #dl-weeks-select').on('change', loadDownloads);
@@ -1202,6 +1597,7 @@ $(document).ready(function() {
 
     initAddShow();
     initEpActionMenu();
+    initSeasonActionMenu();
     window.addEventListener('hashchange', route);
     route();
 });
