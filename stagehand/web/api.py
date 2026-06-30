@@ -223,6 +223,15 @@ def pid():
     return {'pid': os.getpid()}
 
 
+@web.get('/api/log')
+def log_entries():
+    from ..logger import memory_handler
+    since = web.request.query.since
+    since = int(since) if since.isdigit() else 0
+    web.response.loglevel = logging.DEBUG
+    return {'records': memory_handler.get_records(since), 'seq': memory_handler.seq}
+
+
 @web.get('/api/shows')
 def shows_list():
     manager = web.request['stagehand.manager']

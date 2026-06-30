@@ -382,8 +382,23 @@ searchers.easynews.password = your_password</pre>
 <!-- ============================================================ VIEW: LOG -->
 <div id="view-log" class="view">
     <div class="view-inner">
-        <h2 style="margin-bottom:1rem">Application Log</h2>
-        <p style="color:#888; font-size:13px">Log streaming is not yet implemented. Check the Docker container output for live logs.</p>
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.75rem; margin-bottom:1rem">
+            <h2 style="margin:0">Application Log</h2>
+            <div style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap">
+                <div style="display:flex; gap:4px" id="log-level-filter">
+                    <button class="filter-btn active" data-level="all">All</button>
+                    <button class="filter-btn" data-level="INFO">Info+</button>
+                    <button class="filter-btn" data-level="WARNING">Warnings+</button>
+                </div>
+                <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:#aaa; cursor:pointer">
+                    <input type="checkbox" id="log-autoscroll" checked style="width:auto"> Auto-scroll
+                </label>
+                <button class="ui button basic inverted" id="log-clear-btn" style="padding:6px 12px; font-size:13px">Clear</button>
+            </div>
+        </div>
+        <div id="log-output" style="background:#0d0d0d; color:#ccc; font-family:monospace; font-size:12px;
+             padding:0.75rem; border-radius:4px; height:550px; overflow-y:auto; white-space:pre-wrap; word-break:break-all; border:1px solid #333"></div>
+        <div style="font-size:11px; color:#555; margin-top:4px" id="log-status">Connecting...</div>
     </div>
 </div>
 
@@ -575,6 +590,11 @@ function showView(view) {
         $('#nav-configure').addClass('active');
     } else {
         $('#nav-configure').removeClass('active');
+    }
+    if (view === 'log') {
+        startLogStream();
+    } else {
+        stopLogStream();
     }
 }
 
@@ -1048,6 +1068,65 @@ function onDlProgress(data) {
     });
 }
 
+// ---------------------------------------------------------------- Log view
+var logSeq = 0;
+var logTimer = null;
+var logMinLevel = 0; // 0=all, 20=INFO, 30=WARNING
+var LOG_LEVELS = { DEBUG2: 5, DEBUG: 10, INFO: 20, WARNING: 30, ERROR: 40, CRITICAL: 50 };
+var LOG_COLORS = { DEBUG2: '#444', DEBUG: '#555', INFO: '#ccc', WARNING: '#f2711c', ERROR: '#db2828', CRITICAL: '#db2828' };
+
+function startLogStream() {
+    if (logTimer) return;
+    fetchLog();
+    logTimer = setInterval(fetchLog, 2000);
+}
+
+function stopLogStream() {
+    if (logTimer) { clearInterval(logTimer); logTimer = null; }
+}
+
+function fetchLog() {
+    $.get(ROOT + '/api/log', { since: logSeq }, function(data) {
+        var records = data.records || [];
+        var $out = $('#log-output');
+        var atBottom = $out[0].scrollHeight - $out.scrollTop() - $out.outerHeight() < 40;
+
+        records.forEach(function(r) {
+            var lvl = LOG_LEVELS[r.level] || 0;
+            if (lvl < logMinLevel) return;
+            var color = LOG_COLORS[r.level] || '#ccc';
+            var $line = $('<div>').css('color', color).text(r.msg);
+            $out.append($line);
+        });
+
+        if (records.length) {
+            logSeq = data.seq;
+            // Trim to last 2000 lines to avoid unbounded DOM growth
+            var lines = $out.children();
+            if (lines.length > 2000) lines.slice(0, lines.length - 2000).remove();
+        }
+
+        if ($('#log-autoscroll').is(':checked') && (atBottom || records.length)) {
+            $out[0].scrollTop = $out[0].scrollHeight;
+        }
+
+        var count = $out.children().length;
+        $('#log-status').text('Showing ' + count + ' line' + (count !== 1 ? 's' : '') + ' · refreshes every 2s');
+    }).fail(function() {
+        $('#log-status').text('Connection error — retrying...');
+    });
+}
+
+function setLogLevel(level) {
+    logMinLevel = LOG_LEVELS[level] || 0;
+    $('#log-level-filter .filter-btn').removeClass('active');
+    $('#log-level-filter .filter-btn[data-level="' + (level || 'all') + '"]').addClass('active');
+    // Re-render by resetting and re-fetching everything
+    logSeq = 0;
+    $('#log-output').empty();
+    fetchLog();
+}
+
 // ---------------------------------------------------------------- Init
 $(document).ready(function() {
     stagehand = new Stagehand(ROOT);
@@ -1109,6 +1188,16 @@ $(document).ready(function() {
                 }, 100);
             }
         }
+    });
+
+    // Log controls
+    $('#log-level-filter .filter-btn').on('click', function() {
+        var level = $(this).attr('data-level');
+        setLogLevel(level === 'all' ? null : level);
+    });
+    $('#log-clear-btn').on('click', function() {
+        $('#log-output').empty();
+        $('#log-status').text('Cleared');
     });
 
     initAddShow();
